@@ -1,0 +1,33 @@
+# 敏感配置（含律所真实信息，不上传）
+config.json
+
+# 生成的文书（含当事人真实信息，不上传）
+output/
+
+# Word 模板（不开源）
+templates/
+templates_placeholder/
+
+# 根目录的示例文书
+*.docx
+
+# Python 虚拟环境
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
