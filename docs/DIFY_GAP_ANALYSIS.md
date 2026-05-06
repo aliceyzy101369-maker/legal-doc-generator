@@ -8,7 +8,7 @@
 | Dify 节点 / 能力 | 主要代码位置 | 状态 | 说明 |
 |------------------|-------------|------|------|
 | 调取入参内容 | `api/schemas.py` + `services/input_ingest.py` | ✅ | 支持 `text` / 本地路径 / 主/附件 **id**（经 `DocumentProvider`）；`trace_id`；`contract_type` 覆盖 |
-| 获取合同文本 / 附件（远程 id） | `services/document_provider.py` + `input_ingest.gather_resolved_contract_bundle` | ⚠️ | **stub** 内存表；**http** 为通用可配置拉取（非绑定某一 Dify 工具实现）；`none` 禁用；附件拉取失败软降级 |
+| 获取合同文本 / 附件（远程 id） | `services/document_provider.py` + `input_ingest.gather_resolved_contract_bundle` | ⚠️ | **stub** 内存表；**http** 可配置路径模板、**JSON 点路径**正文抽取、**额外 Header**；`none` 禁用；附件拉取失败软降级 |
 | 获取合同文本 / 附件 markdown | `services/text_processing.py` | ⚠️ | 本地文件 + 远程拉取文本合并；**非** `pid##category##text` 全量历史过滤（`nuber`/`number`）行为 |
 | Dify 行级 markdown | `services/markdown_line_parser.py` + `text_processing.build_paragraphs` | ⚠️ | 解析与主文启发式接入；**未**复刻附件分支过滤词差异等全部细节 |
 | 构建字段取值来源库（src_1..4） | — | ❌ | 仍无独立 JSON「来源库」产物；段落 `doc_type` 表达部分来源 |
@@ -28,6 +28,6 @@
 
 ## 仍建议优先补齐的方向（❌/⚠️ 集中区）
 
-1. **真实 RemoteDocumentProvider（HTTP）**：与具体合同存储/ Dify 工具节点对齐，替代 stub。  
+1. **HTTP 与具体合同平台对齐**：在通用 `HttpDocumentProvider` 上继续加签名字段、OAuth、非 GET 等（当前已支持路径模板 + JSON 路径 + 自定义头）。  
 2. **Dify 粗提/精提 LLM 语义对齐**：当前精提以规则占位为主，不等价 mode_23。  
 3. **附件 markdown 分支差异**（如 `nuber` vs `number`）与历史行格式的全量兼容。

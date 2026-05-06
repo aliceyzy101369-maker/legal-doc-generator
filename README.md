@@ -57,7 +57,7 @@ cp .env.example .env
 - `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL`：真实模型调用
 - `SSL_CERT_FILE`：指向 `certifi` 的 `cacert.pem`（macOS 上常见 SSL 修复）
 - `CONTRACT_DOCUMENT_PROVIDER`：`stub`（默认，内存 id→文本）、`http`（按环境变量 HTTP 拉取）、`none`（禁止按 id 取数）
-- `CONTRACT_DOCUMENT_HTTP_*`、`REVIEW_TASK_MAX_WORKERS`：见 `.env.example`
+- `CONTRACT_DOCUMENT_HTTP_*`（含可选 `CONTRACT_DOCUMENT_HTTP_JSON_PATH`、`CONTRACT_DOCUMENT_HTTP_HEADERS`）、`REVIEW_TASK_MAX_WORKERS`：见 `.env.example`
 
 请求体可选字段 `contract_type`：若提供，将**强制覆盖**合并后的 `contract_type` 字段（对齐 Dify「入参合同类型」语义）。
 

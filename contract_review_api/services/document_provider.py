@@ -62,6 +62,41 @@ def _ssl_context_for_documents() -> ssl.SSLContext:
     return ssl.create_default_context(cafile=str(verify))
 
 
+def _coerce_leaf_to_text(val: Any) -> str | None:
+    if isinstance(val, str) and val.strip():
+        return val.strip()
+    if val is None:
+        return None
+    if isinstance(val, (int, float, bool)):
+        return str(val).strip() or None
+    return None
+
+
+def _get_by_dotted_path(data: Any, path: str) -> Any:
+    """Walk dict/list nesting using dot segments; numeric segments index into lists."""
+    cur: Any = data
+    for raw_seg in str(path or "").strip().split("."):
+        seg = raw_seg.strip()
+        if not seg:
+            continue
+        if isinstance(cur, dict):
+            cur = cur.get(seg)
+        elif isinstance(cur, list):
+            try:
+                cur = cur[int(seg)]
+            except (ValueError, IndexError, TypeError):
+                return None
+        else:
+            return None
+    return cur
+
+
+def _extract_text_by_configured_json_path(data: Any, path: str) -> str | None:
+    """When CONTRACT_DOCUMENT_HTTP_JSON_PATH is set, read this field first."""
+    leaf = _get_by_dotted_path(data, path)
+    return _coerce_leaf_to_text(leaf)
+
+
 def _extract_text_from_json_payload(data: Any) -> str | None:
     """Best-effort extract contract text from typical API JSON envelopes."""
     if isinstance(data, str) and data.strip():
@@ -93,11 +128,16 @@ class HttpDocumentProvider:
         path_template: str,
         timeout: float = 30.0,
         bearer_token: str | None = None,
+        json_text_path: str | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> None:
         self._base = str(base_url or "").strip().rstrip("/")
         self._path_template = str(path_template or "").strip()
         self._timeout = float(timeout)
         self._bearer = (bearer_token or "").strip() or None
+        jpath = str(json_text_path or "").strip()
+        self._json_text_path = jpath or None
+        self._extra_headers = dict(extra_headers or {})
         if not self._base:
             raise DocumentProviderConfigError("CONTRACT_DOCUMENT_HTTP_BASE_URL is required for http provider.")
         if "{doc_id}" not in self._path_template and "{document_id}" not in self._path_template:
@@ -114,7 +154,27 @@ class HttpDocumentProvider:
         ).strip()
         timeout = float(os.getenv("CONTRACT_DOCUMENT_HTTP_TIMEOUT", "30") or "30")
         bearer = str(os.getenv("CONTRACT_DOCUMENT_HTTP_BEARER_TOKEN", "") or "").strip() or None
-        return cls(base_url=base, path_template=path, timeout=timeout, bearer_token=bearer)
+        json_text_path = str(os.getenv("CONTRACT_DOCUMENT_HTTP_JSON_PATH", "") or "").strip() or None
+        headers_raw = str(os.getenv("CONTRACT_DOCUMENT_HTTP_HEADERS", "") or "").strip()
+        extra_headers: dict[str, str] | None = None
+        if headers_raw:
+            try:
+                parsed = json.loads(headers_raw)
+            except json.JSONDecodeError as exc:
+                raise DocumentProviderConfigError(
+                    "CONTRACT_DOCUMENT_HTTP_HEADERS must be valid JSON object."
+                ) from exc
+            if not isinstance(parsed, dict):
+                raise DocumentProviderConfigError("CONTRACT_DOCUMENT_HTTP_HEADERS must be a JSON object.")
+            extra_headers = {str(k): str(v) for k, v in parsed.items()}
+        return cls(
+            base_url=base,
+            path_template=path,
+            timeout=timeout,
+            bearer_token=bearer,
+            json_text_path=json_text_path,
+            extra_headers=extra_headers,
+        )
 
     def _build_url(self, doc_id: str) -> str:
         safe_id = urllib.parse.quote(str(doc_id or "").strip(), safe="")
@@ -127,10 +187,11 @@ class HttpDocumentProvider:
 
     def fetch_text(self, doc_id: str) -> str:
         url = self._build_url(doc_id)
-        req = urllib.request.Request(url=url, method="GET")
+        hdrs: dict[str, str] = {"Accept": "application/json, text/plain, */*"}
         if self._bearer:
-            req.add_header("Authorization", f"Bearer {self._bearer}")
-        req.add_header("Accept", "application/json, text/plain, */*")
+            hdrs["Authorization"] = f"Bearer {self._bearer}"
+        hdrs.update(self._extra_headers)
+        req = urllib.request.Request(url=url, method="GET", headers=hdrs)
 
         ctx = _ssl_context_for_documents()
         try:
@@ -153,6 +214,11 @@ class HttpDocumentProvider:
             parsed = json.loads(raw_stripped)
         except json.JSONDecodeError:
             return raw_stripped
+
+        if self._json_text_path:
+            by_path = _extract_text_by_configured_json_path(parsed, self._json_text_path)
+            if by_path:
+                return by_path
 
         extracted = _extract_text_from_json_payload(parsed)
         if extracted:
