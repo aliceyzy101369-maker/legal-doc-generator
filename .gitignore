@@ -32,3 +32,7 @@ __pycache__/
 .idea/
 *.swp
 *.swo
+
+# Frontend
+frontend/node_modules/
+frontend/dist/

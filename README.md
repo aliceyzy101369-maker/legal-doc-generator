@@ -71,6 +71,23 @@ uvicorn contract_review_api.main:app --reload
 
 默认文档：`http://127.0.0.1:8000/docs`
 
+## 前端（Vite + React）
+
+`frontend/` 提供最小可用的审查界面：选择规则集、粘贴合同文本或上传主合同/附件（`.txt` / `.md` / `.docx` / `.pdf`），调用后端并展示 `comment_list` 与 `extracted_info`。
+
+1. **启动后端**（与 Vite 代理目标一致，默认 8000）：
+   ```bash
+   uvicorn contract_review_api.main:app --reload --port 8000
+   ```
+2. **启动前端**：
+   ```bash
+   cd frontend && npm install && npm run dev
+   ```
+   浏览器打开终端提示的地址（一般为 `http://localhost:5173`）。开发时，`vite.config.ts` 将 `/reviews`、`/rulesets`、`/health` **代理**到 `http://127.0.0.1:8000`，无需在前端写死完整 API 域名。
+3. **CORS**：后端默认允许 `http://localhost:5173` 与 `http://127.0.0.1:5173`（环境变量 **`CORS_ORIGINS`**，逗号分隔多个 Origin）。若将前后端分域部署，请在 `.env` 中配置允许的 Origin；将 **`CORS_ORIGINS` 设为空字符串** 可关闭 CORS 中间件（仅适合同源或纯代理场景）。
+
+生产构建：`cd frontend && npm run build`，产物在 `frontend/dist`；需自行配置静态托管，并把浏览器请求指向你的 API 基地址（或网关同源反代）。
+
 ## API 列表
 
 | 方法 | 路径 | 说明 |
@@ -78,6 +95,7 @@ uvicorn contract_review_api.main:app --reload
 | GET | `/health` | 健康检查 |
 | GET | `/rulesets` | 列出可用规则集 id |
 | POST | `/reviews` | 执行完整审查流程 |
+| POST | `/reviews/upload` | `multipart/form-data`：主合同文件、可选附件、表单字段（与 JSON 入参语义对齐） |
 | POST | `/reviews/dry-run` | 仅构建审查任务与摘要（不落库） |
 
 ## 运行测试

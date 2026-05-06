@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import json
 import re
 from pathlib import Path
@@ -9,17 +10,18 @@ from contract_review_api.core.models import Paragraph
 from contract_review_api.services.markdown_line_parser import is_dify_markdown_line_document, paragraphs_from_markdown_lines
 
 
-def _read_file(path: Path) -> str:
-    suffix = path.suffix.lower()
+def read_contract_bytes(filename: str, data: bytes) -> str:
+    """Extract plain text from an uploaded contract file (same formats as local path ingest)."""
+    suffix = Path(filename or "").suffix.lower()
     if suffix in {".txt", ".md"}:
-        return path.read_text(encoding="utf-8", errors="ignore")
+        return data.decode("utf-8", errors="ignore")
 
     if suffix == ".docx":
         try:
             from docx import Document  # type: ignore
         except ImportError as exc:
             raise RuntimeError("python-docx is required for .docx parsing") from exc
-        document = Document(str(path))
+        document = Document(io.BytesIO(data))
         return "\n".join(p.text for p in document.paragraphs if p.text.strip())
 
     if suffix == ".pdf":
@@ -27,11 +29,15 @@ def _read_file(path: Path) -> str:
             from pypdf import PdfReader  # type: ignore
         except ImportError as exc:
             raise RuntimeError("pypdf is required for .pdf parsing") from exc
-        reader = PdfReader(str(path))
+        reader = PdfReader(io.BytesIO(data))
         chunks = [page.extract_text() or "" for page in reader.pages]
         return "\n".join(chunks)
 
-    raise RuntimeError(f"Unsupported file format: {path.suffix}")
+    raise RuntimeError(f"Unsupported file format: {suffix or '(none)'}")
+
+
+def _read_file(path: Path) -> str:
+    return read_contract_bytes(path.name, path.read_bytes())
 
 
 def split_into_paragraphs(review_id: str, text: str, doc_type: str) -> List[Paragraph]:
