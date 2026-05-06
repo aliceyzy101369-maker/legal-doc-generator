@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import logging
+import os
 import time
 import uuid
 
@@ -37,6 +38,16 @@ from contract_review_api.services.text_processing import build_paragraphs, chunk
 logger = logging.getLogger(__name__)
 
 DEGRADED_ISSUE_TITLE = "模型审查降级提示"
+
+
+def _review_task_max_workers() -> int:
+    """Align with Dify-style iterator default (10), clamped for safety."""
+    raw = os.getenv("REVIEW_TASK_MAX_WORKERS", "10") or "10"
+    try:
+        n = int(raw)
+    except ValueError:
+        n = 10
+    return max(1, min(n, 32))
 
 
 def _trace_id_for(payload: ReviewCreateRequest) -> str:
@@ -182,7 +193,8 @@ def run_review_pipeline(payload: ReviewCreateRequest) -> ReviewResponse:
         llm_issues = run_llm_review(merged_fields, payload.user_position)
         success_count = 1
     else:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        max_workers = _review_task_max_workers()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = [executor.submit(_run_one_task, task) for task in review_tasks]
             for fut in concurrent.futures.as_completed(futures):
                 try:
@@ -218,6 +230,7 @@ def run_review_pipeline(payload: ReviewCreateRequest) -> ReviewResponse:
     summary["coarse_field_count"] = len(coarse)
     summary["refined_field_count"] = len(merged_fields)
     summary["input_warnings"] = [*gather_warnings, *refine_warnings]
+    summary["review_max_workers"] = _review_task_max_workers()
 
     logger.info(
         "pipeline done trace_id=%s review_id=%s elapsed_ms=%s issues=%s comments=%s extracted=%s llm_calls=%s degraded=%s",
@@ -294,6 +307,7 @@ def run_review_dry_run(payload: ReviewCreateRequest) -> ReviewDryRunResponse:
         "success_count": 0,
         "error_count": 0,
         "degraded_count": 0,
+        "review_max_workers": _review_task_max_workers(),
     }
     if st["input_parse_mode"] == "markdown_lines":
         dry_summary["markdown_line_records"] = [

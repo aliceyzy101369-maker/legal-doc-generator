@@ -48,6 +48,7 @@ def test_summary_contains_trace_and_counts(client: TestClient) -> None:
         "attachment_count",
         "coarse_field_count",
         "refined_field_count",
+        "review_max_workers",
     ):
         assert key in s
     assert s["trace_id"] == "trace-integration-1"

@@ -80,8 +80,10 @@ def gather_resolved_contract_bundle(
             remote_attachment_texts.append(t)
         except DocumentNotFoundError:
             warnings.append(f"attachment_not_found:{aid}")
+            remote_attachment_texts.append("")
         except DocumentProviderConfigError as exc:
-            raise InputIngestError(str(exc)) from exc
+            warnings.append(f"attachment_fetch_failed:{aid}:{type(exc).__name__}")
+            remote_attachment_texts.append("")
 
     local_paths = resolve_input_sources(payload)
     return base_text, remote_attachment_texts, local_paths, warnings

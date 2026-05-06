@@ -6,7 +6,7 @@
 | 验收项 | Dify 行为（摘要） | 当前 API 行为（摘要） | 状态 | 验收方法 |
 |--------|-------------------|------------------------|------|----------|
 | 入参解析 | `params.input` JSON：文本、ruleset、合同类型、主/附件 id 等 | `ReviewCreateRequest`：`text` / 本地路径 / `contract_id` 等别名 / `trace_id` | 部分 | `tests/test_phase3_remote_input.py`、`tests/test_dify_acceptance.py` |
-| 主合同文本获取 | 工具按 id 拉取 `textContent` | 默认 `StubDocumentProvider`；`CONTRACT_DOCUMENT_PROVIDER=none` 拒绝 id | 部分 | stub：`main-contract-stub`；无真实 HTTP provider |
+| 主合同文本获取 | 工具按 id 拉取 `textContent` | `stub` / **`http`（可配置 BASE_URL + path 模板 + Bearer）** / `none` | 部分 | HTTP 为**通用**适配层，非某一固定 SaaS；需按实际 API 调路径与 JSON 字段 |
 | 附件获取 | 迭代器拉附件并合并 | 远程 `attachment_ids` + 本地 `attachment_paths`；缺失附件记 `input_warnings` 不 500 | 部分 | `test_phase3_remote_input`、`case_with_attachments.json` |
 | markdown 行解析 | `pid##category##text` 行级文本 | `markdown_line_parser` + 主文本启发式切换；dry-run 输出 `markdown_line_records`（无正文，仅 pid/len） | 部分 | `tests/test_markdown_line_parser.py`、`case_markdown_lines.json` |
 | 粗提 | mode_1 多轮/切片 | `extract_field_candidates_coarse`：全量正则命中 | 部分 | 对照合同样本；`summary.coarse_field_count` |
@@ -17,7 +17,7 @@
 | 锚点分组 | `src=0` 同组 | 已实现 | 通过 | 同上 |
 | limit 切片 | 8000 等 | `chunk_tasks` 在任务构建之后 | 通过 | `tests/test_text_processing_chunk_tasks.py` |
 | LLM 清洗链 | think/围栏/JSON | `llm_cleaner` + dict 外包一层容错 | 通过 | `tests/test_llm_cleaner.py` |
-| 并发审查 | 迭代器并发 10 | `ThreadPoolExecutor(max_workers=5)` | 部分 | 参数与 Dify 不一致；行为可测 |
+| 并发审查 | 迭代器并发 10 | `REVIEW_TASK_MAX_WORKERS`（默认 10，clamp 1–32） | 部分 | 默认值对齐；任务粒度仍取决于规则分组 |
 | 错误隔离 | 子任务失败不拖垮 | 降级 issue + `error_count` | 通过 | `tests/test_summary_observability.py` |
 | 合流节点 | 同字段 `\n` 拼接；合同类型强制 | `merge_fields` + `contract_type` | 通过 | `tests/test_result_merge.py` |
 | 输出标准化 | 4/7 键 | `output_transform` | 通过 | `tests/test_output_transform.py` |

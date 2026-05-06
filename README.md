@@ -4,6 +4,8 @@
 
 第三阶段目标：在**不依赖真实 Dify 画布**的前提下，补齐 **Dify 风格入参**、**行级 markdown 解析**、**粗提/精提可观测性**与 **验收矩阵**，使「替代程度」可对照 `docs/DIFY_ACCEPTANCE_MATRIX.md` 逐项验收。
 
+第四阶段补充：**通用 HTTP 合同拉取**（可配置 base URL + path 模板 + Bearer）、**审查并发数** `REVIEW_TASK_MAX_WORKERS`（默认 10），详见 `DEVELOPMENT_PLAN_PHASE4.md`。
+
 ## 功能简介
 
 - **输入方式**
@@ -54,7 +56,8 @@ cp .env.example .env
 - `LLM_MODE`：`stub`（默认，离线）或 `real`
 - `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL`：真实模型调用
 - `SSL_CERT_FILE`：指向 `certifi` 的 `cacert.pem`（macOS 上常见 SSL 修复）
-- `CONTRACT_DOCUMENT_PROVIDER`：`stub`（默认，内存 id→文本）或 `none`（禁止按 id 取数）
+- `CONTRACT_DOCUMENT_PROVIDER`：`stub`（默认，内存 id→文本）、`http`（按环境变量 HTTP 拉取）、`none`（禁止按 id 取数）
+- `CONTRACT_DOCUMENT_HTTP_*`、`REVIEW_TASK_MAX_WORKERS`：见 `.env.example`
 
 请求体可选字段 `contract_type`：若提供，将**强制覆盖**合并后的 `contract_type` 字段（对齐 Dify「入参合同类型」语义）。
 
@@ -85,6 +88,7 @@ python3 -m pytest tests/ -v
 
 - `DEVELOPMENT_PLAN.md`：第一阶段任务清单
 - `DEVELOPMENT_PLAN_PHASE3.md`：第三阶段执行说明（摘要）
+- `DEVELOPMENT_PLAN_PHASE4.md`：HTTP 取数与并发配置
 - `docs/workflow_full_backup.md` / `docs/workflow_mapping.md`：Dify 工作流对照
 - `docs/DIFY_GAP_ANALYSIS.md`：与 Dify 的差距分析（✅/⚠️/❌）
 - `docs/DIFY_ACCEPTANCE_MATRIX.md`：验收矩阵与结论摘要

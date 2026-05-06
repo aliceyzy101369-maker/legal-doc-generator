@@ -8,7 +8,7 @@
 | Dify 节点 / 能力 | 主要代码位置 | 状态 | 说明 |
 |------------------|-------------|------|------|
 | 调取入参内容 | `api/schemas.py` + `services/input_ingest.py` | ✅ | 支持 `text` / 本地路径 / 主/附件 **id**（经 `DocumentProvider`）；`trace_id`；`contract_type` 覆盖 |
-| 获取合同文本 / 附件（远程 id） | `services/document_provider.py` + `input_ingest.gather_resolved_contract_bundle` | ⚠️ | **默认 stub** 内存表；`CONTRACT_DOCUMENT_PROVIDER=none` 显式禁用；**非** Dify 同款 HTTP 工具节点 |
+| 获取合同文本 / 附件（远程 id） | `services/document_provider.py` + `input_ingest.gather_resolved_contract_bundle` | ⚠️ | **stub** 内存表；**http** 为通用可配置拉取（非绑定某一 Dify 工具实现）；`none` 禁用；附件拉取失败软降级 |
 | 获取合同文本 / 附件 markdown | `services/text_processing.py` | ⚠️ | 本地文件 + 远程拉取文本合并；**非** `pid##category##text` 全量历史过滤（`nuber`/`number`）行为 |
 | Dify 行级 markdown | `services/markdown_line_parser.py` + `text_processing.build_paragraphs` | ⚠️ | 解析与主文启发式接入；**未**复刻附件分支过滤词差异等全部细节 |
 | 构建字段取值来源库（src_1..4） | — | ❌ | 仍无独立 JSON「来源库」产物；段落 `doc_type` 表达部分来源 |
@@ -17,7 +17,7 @@
 | 粗提 / 精提双链路 | `services/field_extraction.py` + `pipeline.py` | ⚠️ | **粗提**=全量正则命中；**精提**=合流 + 规则字段占位补全；与 Dify mode_1/mode_23 **不等价**（尤其 LLM 精提） |
 | 粗提/精提切片（limit=8000） | `services/text_processing.py` + `core/pipeline.py` | ✅ | `chunk_tasks` 在任务构建之后 |
 | 构建审查任务队列 | `services/review_task_builder.py` + `pipeline.py` | ✅ | 回填、`empty_policy`、anchor、limit |
-| 迭代器并发审查 | `core/pipeline.py` | ⚠️ | `ThreadPoolExecutor(max_workers=5)`；Dify 常为 10 |
+| 迭代器并发审查 | `core/pipeline.py` | ⚠️ | `REVIEW_TASK_MAX_WORKERS`（默认 10，可改）；与 Dify 画布并发仍可能因任务拆分不同而不等价 |
 | 审查（LLM） | `services/llm_engine.py` | ✅ | 超时、SSL、`degraded` 可计数 |
 | 审查后处理链 | `services/llm_cleaner.py` | ✅ | think / 围栏 / JSON + dict 外包一层 |
 | 输出数据格式校验 | `services/output_transform.py` | ✅ | 4/7 键、`normalize_review_issues` |
