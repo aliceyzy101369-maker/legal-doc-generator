@@ -1,0 +1,47 @@
+[
+  {
+    "title": "project_name",
+    "instruction": "检查项目名称是否存在并与合同主题一致。",
+    "outputs": ["risk"],
+    "risk_level": "高",
+    "empty_policy": 1,
+    "target_fields": [
+      {
+        "name": "project_name",
+        "desc": "项目名称",
+        "src": 1,
+        "mode": 1
+      }
+    ]
+  },
+  {
+    "title": "party_info",
+    "instruction": "检查甲乙方主体信息是否完整，是否可唯一识别。",
+    "outputs": ["risk"],
+    "risk_level": "高",
+    "empty_policy": 1,
+    "target_fields": [
+      {
+        "name": "party_info",
+        "desc": "合同主体信息",
+        "src": 1,
+        "mode": 1
+      }
+    ]
+  },
+  {
+    "title": "effective_period",
+    "instruction": "检查合同期限是否包含完整起止边界。",
+    "outputs": ["risk"],
+    "risk_level": "中",
+    "empty_policy": 1,
+    "target_fields": [
+      {
+        "name": "effective_period",
+        "desc": "合同期限",
+        "src": 1,
+        "mode": 1
+      }
+    ]
+  }
+]
