@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import re
 import socket
 import ssl
 import urllib.error
@@ -23,6 +22,11 @@ except Exception:  # pragma: no cover - optional dependency fallback
 
 if load_dotenv:
     load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+
+
+def degraded_llm_issues(reason: str) -> List[ReviewIssue]:
+    """Public helper for recoverable LLM failures (e.g. per concurrent sub-task)."""
+    return _build_fallback_issues(reason)
 
 
 def run_llm_review(fields: List[FieldCandidate], user_position: str | None = None) -> List[ReviewIssue]:
@@ -125,7 +129,7 @@ def _build_prompt_input(fields: List[FieldCandidate], user_position: str | None)
     return json.dumps(payload, ensure_ascii=False)
 
 
-def _call_real_model(prompt_input: str, *, api_key: str, base_url: str, model: str, timeout: int = 30) -> str:
+def _call_real_model(prompt_input: str, *, api_key: str, base_url: str, model: str, timeout: int = 120) -> str:
     url = base_url if base_url.endswith("/chat/completions") else f"{base_url}/chat/completions"
     request_payload = {
         "model": model,
@@ -170,13 +174,29 @@ def _call_real_model(prompt_input: str, *, api_key: str, base_url: str, model: s
         raise RuntimeError(f"invalid model response envelope: {response_text}") from exc
 
 
+def _issues_list_from_cleaned(cleaned: Any) -> list[Any]:
+    """Turn clean_llm_output() result into a list of issue dicts when possible."""
+    if isinstance(cleaned, list):
+        return cleaned
+    if isinstance(cleaned, dict):
+        for key in ("issues", "comment_list", "data", "items", "results"):
+            val = cleaned.get(key)
+            if isinstance(val, list):
+                return val
+        for val in cleaned.values():
+            if isinstance(val, list) and val and isinstance(val[0], dict):
+                return val
+    return []
+
+
 def _parse_llm_issues(raw: str) -> List[ReviewIssue]:
     cleaned = clean_llm_output(raw)
-    if not isinstance(cleaned, list):
+    data = _issues_list_from_cleaned(cleaned)
+    if not data:
         return []
 
     out: List[ReviewIssue] = []
-    for item in cleaned:
+    for item in data:
         if not isinstance(item, dict):
             continue
         title = str(item.get("title", "")).strip()
@@ -206,7 +226,7 @@ def _build_fallback_issues(reason: str) -> List[ReviewIssue]:
     return [
         ReviewIssue(
             title="模型审查降级提示",
-            comment=reason,
+            comment=reason[:2000],
             degree="低",
             category=0,
             evidence=[],
@@ -237,4 +257,3 @@ def _normalize_int_list(value: Any) -> List[int]:
             return []
         return _normalize_int_list(parsed)
     return []
-

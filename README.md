@@ -1,114 +1,69 @@
-# Legal Doc Generator ⚖️
+# 合同审查 API 服务
 
-基于 Streamlit 的法律文书自动生成系统，支持一键生成委托代理协议、授权委托书、民事出庭函、法定代表人身份证明书等全套法律文书。
+基于 **FastAPI** 的独立合同审查后端：从合同文本（或本地文件路径）提取关键字段、加载审查规则、组装审查任务、调用大模型（DeepSeek，OpenAI 兼容接口）生成审查意见，并输出结构化的 `comment_list` + `extracted_info`。
 
-![Python](https://img.shields.io/badge/Python-3.10+-blue)
-![Streamlit](https://img.shields.io/badge/Streamlit-1.30+-red)
-![License](https://img.shields.io/badge/License-MIT-green)
+## 功能简介
 
-## 功能特点
+- 接收合同：`text` 纯文本，或 `file_path` 指向本地 `.txt` / `.md` / `.docx` / `.pdf`
+- 字段提取：正则/启发式抽取（如甲方、乙方、项目名称、合同期限等）
+- 规则加载：内置 `base-rules` / `demo` / `strict-rules`，并支持从 `contract_review_api/rulesets/*.json` 扩展
+- 审查任务：按 Dify 工作流思路构建任务包，支持长度分组、锚点分组、`empty_policy` 跳过
+- 大模型审查：`LLM_MODE=stub|real`；真实模式支持 `SSL_CERT_FILE` 指定 CA bundle
+- 输出：`final_output.comment_list`（4 键/7 键约束）与 `extracted_info`
 
-- 📝 **多文书类型**：委托代理协议、授权委托书、民事出庭函、法定代表人身份证明书
-- 👔 **律师团队信息**：支持主办律师、辅办律师信息配置
-- 🏢 **委托方信息**：支持自然人和公司法人两种类型
-- 📋 **对方当事人**：支持多个对方当事人
-- 💰 **代理费条款**：支持固定收费、风险代理、固定+风险三种模式
-- 📜 **代理权限**：一般代理/特别授权（含预置权限项）
-- 🎨 **美观 UI**：专业法律风格界面，深蓝色侧边栏
-
-## 快速开始
-
-### 1. 克隆项目
-
-```bash
-git clone https://github.com/<你的用户名>/legal-doc-generator.git
-cd legal-doc-generator
-```
-
-### 2. 创建虚拟环境
+## 安装
 
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate  # macOS/Linux
-# 或 .venv\Scripts\activate  # Windows
-```
-
-### 3. 安装依赖
-
-```bash
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. 配置律所信息
+## 配置
+
+复制示例环境文件并按需填写（**不要**把真实 `.env` 提交到 Git）：
 
 ```bash
-cp config.example.json config.json
-# 编辑 config.json，填入你的律所信息
+cp .env.example .env
 ```
 
-### 5. 准备 Word 模板
+常用变量：
 
-将你的 Word 模板文件（.docx）放入 `templates/` 目录，支持 Jinja2 语法占位符如 `{{委托人}}`、`{{案由}}` 等。
+- `LLM_MODE`：`stub`（默认，离线）或 `real`
+- `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL`：真实模型调用
+- `SSL_CERT_FILE`：指向 `certifi` 的 `cacert.pem`（macOS 上常见 SSL 修复）
 
-### 6. 运行
+请求体可选字段 `contract_type`：若提供，将**强制覆盖**合并后的 `contract_type` 字段（对齐 Dify「入参合同类型」语义）。
+
+## 启动服务
 
 ```bash
-streamlit run generate_docs.py
+uvicorn contract_review_api.main:app --reload
 ```
 
-## 项目结构
+默认文档：`http://127.0.0.1:8000/docs`
 
-```
-legal-doc-generator/
-├── generate_docs.py      # 主程序（Streamlit Web 应用）
-├── setup_templates.py     # 模板预处理脚本
-├── config.example.json   # 配置示例文件
-├── templates/            # Word 模板目录（不含）
-├── output/              # 生成的文书输出目录（不含）
-└── .gitignore           # Git 忽略配置
-```
+## API 列表
 
-## 配置说明
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/health` | 健康检查 |
+| GET | `/rulesets` | 列出可用规则集 id |
+| POST | `/reviews` | 执行完整审查流程 |
+| POST | `/reviews/dry-run` | 仅构建审查任务与摘要（不落库） |
 
-编辑 `config.json`：
+## 运行测试
 
-```json
-{
-    "firm_name": "你的律所名称",
-    "firm_address": "律所地址",
-    "main_lawyer": "主办律师姓名",
-    "lawyer_phone": "律师联系电话",
-    "second_lawyer": "辅办律师（可选）"
-}
+```bash
+python3 -m pytest tests/ -v
 ```
 
-## 使用流程
+## 相关文档
 
-1. 在侧边栏查看律所信息
-2. 填写委托方信息（自然人/公司）
-3. 填写对方当事人信息
-4. 填写律师团队信息
-5. 填写案件核心信息（案由、审理程序、争议金额等）
-6. 选择诉讼地位和代理权限
-7. 配置代理费条款
-8. 点击「生成全套法律文书」
-
-## 技术栈
-
-- **Python 3.10+**
-- **Streamlit** - Web 框架
-- **python-docx-template** - Word 文档生成
-
-## 注意事项
-
-- ⚠️ 请勿将含真实当事人信息的文件提交到 Git
-- 📁 生成的文书保存在 `output/` 目录
-- 📋 首次使用需准备符合规范的 Word 模板
+- `DEVELOPMENT_PLAN.md`：第一阶段任务清单
+- `docs/workflow_full_backup.md` / `docs/workflow_mapping.md`：Dify 工作流对照
+- `docs/DIFY_GAP_ANALYSIS.md`：与 Dify 的差距分析（✅/⚠️/❌）
 
 ## 许可证
 
-MIT License
-
----
-
-欢迎 Star ⭐️ 和贡献！
+MIT（如仓库另有声明以仓库为准）。

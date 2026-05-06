@@ -11,6 +11,10 @@ class ReviewCreateRequest(BaseModel):
     attachment_paths: List[str] = Field(default_factory=list)
     ruleset_ids: List[str] = Field(default_factory=list)
     user_position: Optional[str] = None
+    contract_type: Optional[str] = Field(
+        default=None,
+        description="Optional contract type from caller; when set, overrides merged contract_type field",
+    )
 
 
 class FieldOutput(BaseModel):
