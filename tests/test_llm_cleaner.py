@@ -32,6 +32,23 @@ def test_parse_json_tolerant_extracts_key_list_pairs_when_json_invalid():
     assert out["issues"][0]["title"] == "t"
 
 
+def test_parse_json_object_tolerant_parses_field_blob():
+    raw = '{"party_info": {"value": "甲", "evidence_paragraphs": [2]}, "x": "plain"}'
+    out = llm_cleaner.parse_json_object_tolerant(raw)
+    assert out["party_info"]["value"] == "甲"
+    assert out["x"] == "plain"
+
+
+def test_clean_llm_field_json_strips_think_and_fence():
+    raw = """</think>
+```json
+{"a": {"value": "1", "evidence_paragraphs": []}}
+```
+"""
+    out = llm_cleaner.clean_llm_field_json(raw)
+    assert out["a"]["value"] == "1"
+
+
 def test_clean_llm_output_chains_all_steps():
     raw = """
     </think>

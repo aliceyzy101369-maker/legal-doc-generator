@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, List
 
 from contract_review_api.core.models import FieldCandidate, ReviewIssue
-from contract_review_api.services.llm_cleaner import clean_llm_output
+from contract_review_api.services.llm_cleaner import clean_llm_field_json, clean_llm_output
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,13 @@ def run_llm_review_with_debug(fields: List[FieldCandidate], user_position: str |
 
     prompt_input = _build_prompt_input(fields, user_position)
     try:
-        raw = _call_real_model(prompt_input, api_key=api_key, base_url=base_url, model=model)
+        raw = _call_real_model(
+            prompt_input,
+            api_key=api_key,
+            base_url=base_url,
+            model=model,
+            system_content=None,
+        )
     except TimeoutError:
         issues = _build_fallback_issues("LLM call timeout, fallback to degraded review issues.")
         return {"raw_output": "", "issues": issues, "fallback_reason": "timeout"}
@@ -129,13 +135,30 @@ def _build_prompt_input(fields: List[FieldCandidate], user_position: str | None)
     return json.dumps(payload, ensure_ascii=False)
 
 
-def _call_real_model(prompt_input: str, *, api_key: str, base_url: str, model: str, timeout: int = 120) -> str:
+def _field_refine_text_limit() -> int:
+    raw = os.getenv("FIELD_REFINE_TEXT_LIMIT", "120000") or "120000"
+    try:
+        return max(4000, int(raw))
+    except ValueError:
+        return 120000
+
+
+def _call_real_model(
+    prompt_input: str,
+    *,
+    api_key: str,
+    base_url: str,
+    model: str,
+    timeout: int = 120,
+    system_content: str | None = None,
+) -> str:
     url = base_url if base_url.endswith("/chat/completions") else f"{base_url}/chat/completions"
+    sys_msg = system_content or "你是资深合同审查律师。仅输出JSON数组，不输出解释。"
     request_payload = {
         "model": model,
         "temperature": 0.2,
         "messages": [
-            {"role": "system", "content": "你是资深合同审查律师。仅输出JSON数组，不输出解释。"},
+            {"role": "system", "content": sys_msg},
             {"role": "user", "content": prompt_input},
         ],
     }
@@ -239,6 +262,97 @@ def _normalize_int(value: Any, fallback: int = 0) -> int:
         return int(value)
     except (TypeError, ValueError):
         return fallback
+
+
+def run_llm_field_extraction(contract_text: str, field_names: List[str]) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    """
+    Dify mode_23-style semantic field extraction from full contract text.
+    Returns (normalized_map field_key -> {value, evidence_paragraphs, confidence}, warnings).
+
+    LLM_MODE=stub: no HTTP; returns ({}, []).
+    LLM_MODE=real: OpenAI-compatible chat/completions; failures yield {} + warnings.
+    """
+    warnings: list[str] = []
+    mode = str(os.getenv("LLM_MODE", "stub")).strip().lower()
+    if mode != "real":
+        return {}, []
+
+    api_key = str(os.getenv("LLM_API_KEY", "")).strip()
+    base_url = str(os.getenv("LLM_BASE_URL", "")).strip().rstrip("/")
+    model = str(os.getenv("LLM_MODEL", "")).strip()
+    if not api_key or not base_url or not model:
+        warnings.append("llm_field_refine_missing_env")
+        return {}, warnings
+
+    limit = _field_refine_text_limit()
+    text = contract_text if len(contract_text) <= limit else contract_text[:limit]
+    if len(contract_text) > limit:
+        warnings.append("llm_field_refine_text_truncated")
+
+    unique_names = sorted({str(x).strip() for x in field_names if str(x).strip()})
+    payload = {
+        "fields_to_extract": unique_names,
+        "contract_text": text,
+        "output_contract": (
+            "一个 JSON 对象：键必须为上述字段名之一；值为 "
+            '{"value": string, "evidence_paragraphs": number[]} ；'
+            "找不到时 value 用空字符串。不要 markdown 围栏，不要解释。"
+        ),
+    }
+    prompt_input = json.dumps(payload, ensure_ascii=False)
+    system_content = (
+        "你是资深法务助理，从合同全文中抽取指定字段的准确表述。"
+        "仅输出一个 JSON 对象。键为字段名，值为 {\"value\": string, \"evidence_paragraphs\": number[]}。"
+        "evidence_paragraphs 为可选；若无段落编号则使用空数组。"
+    )
+    try:
+        timeout_sec = int(os.getenv("FIELD_REFINE_LLM_TIMEOUT", "120") or "120")
+    except ValueError:
+        timeout_sec = 120
+    timeout_sec = max(10, min(timeout_sec, 600))
+    try:
+        raw = _call_real_model(
+            prompt_input,
+            api_key=api_key,
+            base_url=base_url,
+            model=model,
+            timeout=timeout_sec,
+            system_content=system_content,
+        )
+    except TimeoutError:
+        warnings.append("llm_field_refine_timeout")
+        return {}, warnings
+    except RuntimeError:
+        warnings.append("llm_field_refine_request_error")
+        return {}, warnings
+
+    obj = clean_llm_field_json(raw)
+    if not obj:
+        warnings.append("llm_field_refine_parse_failed")
+        return {}, warnings
+
+    return _normalize_llm_field_map(obj), warnings
+
+
+def _normalize_llm_field_map(obj: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    out: dict[str, dict[str, Any]] = {}
+    for k, v in obj.items():
+        key = str(k).strip()
+        if not key:
+            continue
+        if isinstance(v, str):
+            out[key] = {"value": v.strip(), "evidence_paragraphs": [], "confidence": 0.85}
+            continue
+        if isinstance(v, dict):
+            val = str(v.get("value", "") or "").strip()
+            ev = _normalize_int_list(v.get("evidence_paragraphs", []))
+            conf_raw = v.get("confidence", 0.85)
+            try:
+                conf = float(conf_raw)
+            except (TypeError, ValueError):
+                conf = 0.85
+            out[key] = {"value": val, "evidence_paragraphs": ev, "confidence": min(max(conf, 0.0), 1.0)}
+    return out
 
 
 def _normalize_int_list(value: Any) -> List[int]:

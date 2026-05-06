@@ -15,7 +15,8 @@
   - `trace_id`：可选；未传则服务端生成 UUID，并写入 `summary.trace_id` 与结构化日志（**不记录合同全文**）
 - **字段提取（粗提 / 精提）**
   - **粗提**：`extract_field_candidates_coarse`（全量正则命中，`summary.coarse_field_count`）
-  - **精提**：`refine_field_candidates`（合流 + 规则 `target_fields` 占位补全，`summary.refined_field_count`）；粗提为空时追加可理解的降级提示 issue
+  - **精提**：`refine_field_candidates`（默认 `FIELD_REFINE_MODE=rules`：合流 + 规则 `target_fields` 占位补全）；设 `FIELD_REFINE_MODE=llm` 或 `LLM_FIELD_REFINE=true` 时对齐 Dify **mode_23**：用全文 + `target_fields` 名与标准字段键调用 LLM 抽取 JSON，**非空 LLM 取值覆盖**同名字段，粗提仍补空；`LLM_MODE=stub` 时不发起抽取请求。详见 `DEVELOPMENT_PLAN_PHASE6.md`
+  - `summary.refined_field_count`；粗提为空时追加可理解的降级提示 issue
 - **Dify markdown 行**：`pid##分类##正文` — `services/markdown_line_parser.py`；主文符合启发式时走行级段落，`dry-run` 返回 `markdown_line_records`（仅 pid、分类与 `text_len`，不含正文）
 - **规则与任务**：`empty_policy`、锚点分组、`chunk_tasks` 切片、并发 LLM（worker=5，与 Dify 默认 10 不完全一致）
 - **可观测性**：`summary` 含 `llm_call_count`、`degraded_count`、`chunk_count`、`attachment_count`、`input_warnings` 等
@@ -58,6 +59,7 @@ cp .env.example .env
 - `SSL_CERT_FILE`：指向 `certifi` 的 `cacert.pem`（macOS 上常见 SSL 修复）
 - `CONTRACT_DOCUMENT_PROVIDER`：`stub`（默认，内存 id→文本）、`http`（按环境变量 HTTP 拉取）、`none`（禁止按 id 取数）
 - `CONTRACT_DOCUMENT_HTTP_*`（含可选 `CONTRACT_DOCUMENT_HTTP_JSON_PATH`、`CONTRACT_DOCUMENT_HTTP_HEADERS`）、`REVIEW_TASK_MAX_WORKERS`：见 `.env.example`
+- `FIELD_REFINE_MODE`、`LLM_FIELD_REFINE`、`FIELD_REFINE_TEXT_LIMIT`、`FIELD_REFINE_LLM_TIMEOUT`：精提 LLM 路径（第六阶段）
 
 请求体可选字段 `contract_type`：若提供，将**强制覆盖**合并后的 `contract_type` 字段（对齐 Dify「入参合同类型」语义）。
 

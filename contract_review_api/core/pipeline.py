@@ -92,6 +92,7 @@ def _prepare_contract_state(payload: ReviewCreateRequest, review_id: str, trace_
         coarse,
         review_rules,
         contract_type_override=payload.contract_type,
+        contract_text=base_text,
     )
 
     attachment_count = len(payload.attachment_paths) + len(payload.resolved_attachment_document_ids())

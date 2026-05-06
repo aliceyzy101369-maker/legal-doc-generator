@@ -14,7 +14,7 @@
 | 构建字段取值来源库（src_1..4） | — | ❌ | 仍无独立 JSON「来源库」产物；段落 `doc_type` 表达部分来源 |
 | 获取审查规则集 / 展开 rules | `services/ruleset_loader.py` | ✅ | 内置 + 文件 ruleset |
 | 构建待审对象字段库 | `services/review_task_builder.py`（部分） | ⚠️ | 仍无 Dify 同名中间 JSON；逻辑在任务构建中体现 |
-| 粗提 / 精提双链路 | `services/field_extraction.py` + `pipeline.py` | ⚠️ | **粗提**=全量正则命中；**精提**=合流 + 规则字段占位补全；与 Dify mode_1/mode_23 **不等价**（尤其 LLM 精提） |
+| 粗提 / 精提双链路 | `services/field_extraction.py` + `pipeline.py` | ⚠️ | **粗提**=全量正则命中；**精提**默认 rules；`FIELD_REFINE_MODE=llm` 时为全文 LLM 抽取 + 覆盖合并（对齐 mode_23 主语义）。**未**复刻精提 8000 字切片迭代与来源库 src_1..4 |
 | 粗提/精提切片（limit=8000） | `services/text_processing.py` + `core/pipeline.py` | ✅ | `chunk_tasks` 在任务构建之后 |
 | 构建审查任务队列 | `services/review_task_builder.py` + `pipeline.py` | ✅ | 回填、`empty_policy`、anchor、limit |
 | 迭代器并发审查 | `core/pipeline.py` | ⚠️ | `REVIEW_TASK_MAX_WORKERS`（默认 10，可改）；与 Dify 画布并发仍可能因任务拆分不同而不等价 |

@@ -71,3 +71,32 @@ def clean_llm_output(raw_text: str) -> dict | list:
     step2 = remove_markdown_fence(step1)
     return parse_json_tolerant(step2)
 
+
+def parse_json_object_tolerant(text: Any) -> dict[str, Any]:
+    """
+    Parse a JSON object for field-extraction style outputs (string or nested dict values).
+    Invalid or non-object JSON returns {}.
+    """
+    current = str(text or "")
+    if not current.strip():
+        return {}
+    try:
+        parsed = json.loads(current)
+    except Exception:
+        return {}
+    if isinstance(parsed, dict):
+        out: dict[str, Any] = {}
+        for k, v in parsed.items():
+            if k is None:
+                continue
+            out[str(k)] = v
+        return out
+    return {}
+
+
+def clean_llm_field_json(raw_text: str) -> dict[str, Any]:
+    """Strip think/fences then parse a single JSON object of field extractions."""
+    step1 = remove_think_prefix(raw_text)
+    step2 = remove_markdown_fence(step1)
+    return parse_json_object_tolerant(step2)
+
