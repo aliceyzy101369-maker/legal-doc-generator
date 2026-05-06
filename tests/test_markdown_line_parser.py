@@ -6,6 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from contract_review_api.core.models import Paragraph
 from contract_review_api.services.markdown_line_parser import (
     is_dify_markdown_line_document,
+    is_numberish_line_category,
     parse_markdown_lines,
     paragraphs_from_markdown_lines,
 )
@@ -49,8 +50,28 @@ def test_empty_body_keeps_pid():
     assert rows[0].text == ""
 
 
-def test_paragraphs_from_lines():
-    paras = paragraphs_from_markdown_lines("rid", "1##x##hello\n2##y##world")
+def test_paragraphs_from_lines_number_category():
+    paras = paragraphs_from_markdown_lines("rid", "1##number##hello\n2##number##world")
     assert isinstance(paras[0], Paragraph)
     assert paras[0].paragraph_no == 1
     assert paras[0].text == "hello"
+
+
+def test_paragraphs_from_lines_nuber_typo_branch():
+    paras = paragraphs_from_markdown_lines("rid", "10##nuber##附件一行")
+    assert len(paras) == 1
+    assert paras[0].text == "附件一行"
+
+
+def test_paragraphs_exclude_non_numberish_categories():
+    paras = paragraphs_from_markdown_lines(
+        "rid",
+        "1##基本信息##skip\n2##number##keep",
+    )
+    assert len(paras) == 1
+    assert paras[0].text == "keep"
+
+
+def test_numberish_category_case_insensitive():
+    assert is_numberish_line_category("Number") is True
+    assert is_numberish_line_category("NUBER") is True

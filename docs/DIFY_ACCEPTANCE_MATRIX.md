@@ -8,9 +8,10 @@
 | 入参解析 | `params.input` JSON：文本、ruleset、合同类型、主/附件 id 等 | `ReviewCreateRequest`：`text` / 本地路径 / `contract_id` 等别名 / `trace_id` | 部分 | `tests/test_phase3_remote_input.py`、`tests/test_dify_acceptance.py` |
 | 主合同文本获取 | 工具按 id 拉取 `textContent` | `stub` / **`http`（可配置 BASE_URL + path 模板 + Bearer）** / `none` | 部分 | HTTP 为**通用**适配层，非某一固定 SaaS；需按实际 API 调路径与 JSON 字段 |
 | 附件获取 | 迭代器拉附件并合并 | 远程 `attachment_ids` + 本地 `attachment_paths`；缺失附件记 `input_warnings` 不 500 | 部分 | `test_phase3_remote_input`、`case_with_attachments.json` |
-| markdown 行解析 | `pid##category##text` 行级文本 | `markdown_line_parser` + 主文本启发式切换；dry-run 输出 `markdown_line_records`（无正文，仅 pid/len） | 部分 | `tests/test_markdown_line_parser.py`、`case_markdown_lines.json` |
+| markdown 行解析 | `pid##category##text`；A/B 分支 `number`/`nuber` | 解析全量行；**段落**仅保留 `number`/`nuber`（大小写不敏感）；dry-run `markdown_line_records` | 部分 | `tests/test_markdown_line_parser.py`、`case_markdown_lines.json` |
 | 粗提 | mode_1 多轮/切片 | `extract_field_candidates_coarse`：全量正则命中 | 部分 | 对照合同样本；`summary.coarse_field_count` |
-| 精提 | mode_23 补全规范化 | `refine_field_candidates`：合流 + 规则 `target_fields` 占位补全 | 部分 | `summary.refined_field_count`；与 Dify 精提 LLM 仍可能不一致 |
+| 取值来源库 | src=1..4 | `build_source_library` + `assemble_source_inputs`；精提 LLM 用 `format_source_library_for_llm` | 部分 | `tests/test_source_library.py`；无独立落库 JSON |
+| 精提 | mode_23 补全规范化 | 默认 `regex`：合流 + 占位；`llm`：LLM 抽取后与粗提 **\\n 拼接** | 部分 | `tests/test_field_refine_llm.py`、`test_field_refine.py`；未做多段 8k 并发 |
 | 规则加载 | ruleset API | `ruleset_loader` 内置 + JSON 文件 | 通过 | `tests/test_ruleset_loader.py` |
 | 审查任务构建 | 回填、empty_policy、anchor、limit | `build_review_tasks` 未改语义 | 通过 | `tests/test_review_task_builder.py` |
 | empty_policy | 全空跳过 | 已实现 | 通过 | 同上 |
@@ -21,7 +22,7 @@
 | 错误隔离 | 子任务失败不拖垮 | 降级 issue + `error_count` | 通过 | `tests/test_summary_observability.py` |
 | 合流节点 | 同字段 `\n` 拼接；合同类型强制 | `merge_fields` + `contract_type` | 通过 | `tests/test_result_merge.py` |
 | 输出标准化 | 4/7 键 | `output_transform` | 通过 | `tests/test_output_transform.py` |
-| summary | 多维统计 | `trace_id`、`llm_call_count`、`degraded_count`、`chunk_count`、`attachment_count`、粗/精提计数等 | 部分 | `tests/test_integration.py`、`test_summary_observability.py` |
+| summary | 多维统计 | 含 `aggregation_success_count` / `aggregation_error_count`（模型审查降级从 final 结构化输出中分离） | 部分 | `tests/test_integration.py`、`test_summary_observability.py` |
 | dry-run 可观测性 | 任务结构可解释 | `markdown_line_records`、warnings、粗/精提计数 | 部分 | `tests/test_dify_acceptance.py` |
 
 ## 结论摘要

@@ -9,6 +9,13 @@ from contract_review_api.core.models import Paragraph
 # Dify-style line: pid##category##body  (category may be Chinese/ASCII)
 _LINE_RE = re.compile(r"^(\d+)##([^#]*?)##(.*)$")
 
+# Dify A/B branches use "number" vs historical typo "nuber"; treat both as the same bucket.
+_NUMBERISH_CATEGORIES = frozenset({"number", "nuber"})
+
+
+def is_numberish_line_category(category: str) -> bool:
+    return str(category or "").lower().strip() in _NUMBERISH_CATEGORIES
+
 
 @dataclass(frozen=True)
 class MarkdownLineRecord:
@@ -70,6 +77,7 @@ def is_dify_markdown_line_document(text: str) -> bool:
 def paragraphs_from_markdown_lines(review_id: str, text: str) -> list[Paragraph]:
     """Build Paragraph objects using pid as paragraph_no and body as extraction text."""
     records = parse_markdown_lines(text)
+    filtered = [r for r in records if is_numberish_line_category(r.category)]
     return [
         Paragraph(
             review_id=review_id,
@@ -77,5 +85,5 @@ def paragraphs_from_markdown_lines(review_id: str, text: str) -> list[Paragraph]
             paragraph_no=r.pid,
             text=r.text,
         )
-        for r in records
+        for r in filtered
     ]

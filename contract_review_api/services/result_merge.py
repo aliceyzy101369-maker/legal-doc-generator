@@ -75,11 +75,28 @@ def merge_issues(rule_issues: List[ReviewIssue], llm_issues: List[ReviewIssue]) 
         # keep higher degree severity if duplicated
         if _severity(issue.degree) > _severity(out[key].degree):
             out[key] = issue
-    return sorted(out.values(), key=lambda x: _severity(x.degree), reverse=True)
+    return sorted(out.values(), key=lambda x: (-_severity(x.degree), x.title or ""))
+
+
+def partition_issues_for_final_output(issues: List[ReviewIssue]) -> tuple[List[ReviewIssue], List[ReviewIssue]]:
+    """Split LLM/infrastructure degraded issues from structured final_output (Dify aggregate vs error)."""
+    good: list[ReviewIssue] = []
+    degraded: list[ReviewIssue] = []
+    for issue in issues:
+        if _is_llm_infrastructure_degraded_title(issue.title):
+            degraded.append(issue)
+        else:
+            good.append(issue)
+    return good, degraded
+
+
+def _is_llm_infrastructure_degraded_title(title: str | None) -> bool:
+    """Only model/subtask failure titles; business warnings like 字段粗提降级提示 stay in final_output."""
+    return (title or "").strip() == "模型审查降级提示"
 
 
 def _issue_key(issue: ReviewIssue) -> str:
-    raw = f"{issue.title}|{issue.category}|{issue.change_type}|{issue.revised_text or ''}|{issue.comment}"
+    raw = f"{issue.title}|{issue.comment}"
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()
 
 

@@ -143,5 +143,7 @@ def test_summary_fields(client: TestClient) -> None:
         "coarse_field_count",
         "refined_field_count",
         "review_max_workers",
+        "aggregation_success_count",
+        "aggregation_error_count",
     ):
         assert key in s

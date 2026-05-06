@@ -42,9 +42,10 @@ def _field_refine_mode() -> str:
     flag = str(os.getenv("LLM_FIELD_REFINE", "") or "").strip().lower()
     if flag in ("1", "true", "yes", "on"):
         return "llm"
-    raw = str(os.getenv("FIELD_REFINE_MODE", "rules") or "rules").strip().lower()
+    raw = str(os.getenv("FIELD_REFINE_MODE", "regex") or "regex").strip().lower()
     if raw in ("llm", "mode_23", "mode23"):
         return "llm"
+    # regex / rules / default: coarse + rules gap-fill only (no field LLM)
     return "rules"
 
 
@@ -95,9 +96,15 @@ def _merge_coarse_llm_rules_gapfill(
         conf = min(max(conf, 0.0), 1.0)
         prev = by_key.get(key)
         base_conf = prev.confidence if prev else 0.0
+        prev_val = str(prev.value or "").strip() if prev else ""
+        if prev_val:
+            merged_val = f"{prev_val}\n{val}"
+            evidence = sorted(set((prev.evidence_paragraphs if prev else []) + evidence))
+        else:
+            merged_val = val
         by_key[key] = FieldCandidate(
             field_key=key,
-            value=val,
+            value=merged_val,
             confidence=max(conf, base_conf),
             evidence_paragraphs=evidence,
         )
@@ -127,6 +134,7 @@ def refine_field_candidates(
     *,
     contract_type_override: str | None = None,
     contract_text: str | None = None,
+    source_library: list[dict] | None = None,
 ) -> tuple[List[FieldCandidate], List[str]]:
     """
     Mode-23 style: merge + gap-fill target_fields from rules + optional contract_type override.
@@ -146,8 +154,16 @@ def refine_field_candidates(
     standard_keys = set(FIELD_PATTERNS.keys())
     field_name_union = sorted(names | standard_keys)
 
-    if _field_refine_mode() == "llm" and contract_text is not None and str(contract_text).strip():
-        llm_map, llm_warnings = run_llm_field_extraction(contract_text, field_name_union)
+    extraction_text: str | None = None
+    if source_library:
+        from contract_review_api.services.source_library import format_source_library_for_llm
+
+        extraction_text = format_source_library_for_llm(source_library)
+    elif contract_text is not None and str(contract_text).strip():
+        extraction_text = str(contract_text).strip()
+
+    if _field_refine_mode() == "llm" and extraction_text:
+        llm_map, llm_warnings = run_llm_field_extraction(extraction_text, field_name_union)
         warnings.extend(llm_warnings)
         merged = _merge_coarse_llm_rules_gapfill(
             coarse,

@@ -7,6 +7,7 @@ import sys
 import zipfile
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -14,6 +15,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from contract_review_api.main import app
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def _force_llm_stub(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LLM_MODE", "stub")
 
 
 def _minimal_docx_bytes() -> bytes:
@@ -57,7 +63,8 @@ def _minimal_docx_bytes() -> bytes:
 def test_review_upload_main_docx() -> None:
     docx = _minimal_docx_bytes()
     files = {"main_file": ("contract.docx", docx, "application/octet-stream")}
-    data = {"ruleset_ids": '["demo"]'}
+    # user_position 触发 stub LLM 的一条提示，避免「字段齐全 + 无规则命中」时 comment_list 为空
+    data = {"ruleset_ids": '["demo"]', "user_position": "甲方"}
     resp = client.post("/reviews/upload", files=files, data=data)
     assert resp.status_code == 200, resp.text
     body = resp.json()

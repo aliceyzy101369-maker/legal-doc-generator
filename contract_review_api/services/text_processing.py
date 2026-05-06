@@ -40,6 +40,11 @@ def _read_file(path: Path) -> str:
     return read_contract_bytes(path.name, path.read_bytes())
 
 
+def read_contract_path(path: Path) -> str:
+    """Read contract text from a local path (txt/md/docx/pdf)."""
+    return _read_file(path)
+
+
 def split_into_paragraphs(review_id: str, text: str, doc_type: str) -> List[Paragraph]:
     normalized = re.sub(r"\r\n?", "\n", text).strip()
     raw_paras = [p.strip() for p in re.split(r"\n{2,}", normalized) if p.strip()]

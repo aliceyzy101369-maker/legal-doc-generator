@@ -1,7 +1,7 @@
 # Dify 工作流 vs 本仓库实现 — 差距分析
 
 > 标注规则（按补充约束）：**仅主链 `pipeline.py` 实际调用的能力可标 ✅**；函数存在但未接入主链标 **⚠️**；未实现标 **❌**。  
-> 本文基于 `docs/workflow_full_backup.md`、`docs/workflow_mapping.md` 与当前代码对照整理（**第三阶段已更新**）。
+> 本文基于 `docs/workflow_full_backup.md`、`docs/workflow_mapping.md` 与当前代码对照整理（**第六阶段已更新**）。
 
 ## 总览
 
@@ -9,12 +9,12 @@
 |------------------|-------------|------|------|
 | 调取入参内容 | `api/schemas.py` + `services/input_ingest.py` | ✅ | 支持 `text` / 本地路径 / 主/附件 **id**（经 `DocumentProvider`）；`trace_id`；`contract_type` 覆盖 |
 | 获取合同文本 / 附件（远程 id） | `services/document_provider.py` + `input_ingest.gather_resolved_contract_bundle` | ⚠️ | **stub** 内存表；**http** 可配置路径模板、**JSON 点路径**正文抽取、**额外 Header**；`none` 禁用；附件拉取失败软降级 |
-| 获取合同文本 / 附件 markdown | `services/text_processing.py` | ⚠️ | 本地文件 + 远程拉取文本合并；**非** `pid##category##text` 全量历史过滤（`nuber`/`number`）行为 |
-| Dify 行级 markdown | `services/markdown_line_parser.py` + `text_processing.build_paragraphs` | ⚠️ | 解析与主文启发式接入；**未**复刻附件分支过滤词差异等全部细节 |
-| 构建字段取值来源库（src_1..4） | — | ❌ | 仍无独立 JSON「来源库」产物；段落 `doc_type` 表达部分来源 |
+| 获取合同文本 / 附件 markdown | `services/text_processing.py` | ⚠️ | 本地文件 + 远程拉取文本合并；行级段落构建见下行 |
+| Dify 行级 markdown | `services/markdown_line_parser.py` + `text_processing.build_paragraphs` | ⚠️ | `pid##category##text` 解析；**段落构建**仅保留 `category` 为 **number / nuber**（大小写不敏感）的行，对齐 Dify A/B 分支过滤词 |
+| 构建字段取值来源库（src_1..4） | `services/source_library.py` + `core/pipeline.py` | ✅ | `build_source_library` 固定 4 项；`assemble_source_inputs` 从主文/附件路径组装；**精提 LLM** 优先用 `format_source_library_for_llm`；无独立持久化 JSON 产物 |
 | 获取审查规则集 / 展开 rules | `services/ruleset_loader.py` | ✅ | 内置 + 文件 ruleset |
 | 构建待审对象字段库 | `services/review_task_builder.py`（部分） | ⚠️ | 仍无 Dify 同名中间 JSON；逻辑在任务构建中体现 |
-| 粗提 / 精提双链路 | `services/field_extraction.py` + `pipeline.py` | ⚠️ | **粗提**=全量正则命中；**精提**默认 rules；`FIELD_REFINE_MODE=llm` 时为全文 LLM 抽取 + 覆盖合并（对齐 mode_23 主语义）。**未**复刻精提 8000 字切片迭代与来源库 src_1..4 |
+| 粗提 / 精提双链路 | `services/field_extraction.py` + `pipeline.py` | ⚠️ | **粗提**=正则；**默认** `FIELD_REFINE_MODE=regex`（与 `rules` 同义）= 合流 + 规则占位；**llm** = 来源库/全文 LLM 抽取，与粗提同字段 **\\n 拼接**；**未**复刻精提 8k 多段并发 |
 | 粗提/精提切片（limit=8000） | `services/text_processing.py` + `core/pipeline.py` | ✅ | `chunk_tasks` 在任务构建之后 |
 | 构建审查任务队列 | `services/review_task_builder.py` + `pipeline.py` | ✅ | 回填、`empty_policy`、anchor、limit |
 | 迭代器并发审查 | `core/pipeline.py` | ⚠️ | `REVIEW_TASK_MAX_WORKERS`（默认 10，可改）；与 Dify 画布并发仍可能因任务拆分不同而不等价 |
@@ -22,12 +22,21 @@
 | 审查后处理链 | `services/llm_cleaner.py` | ✅ | think / 围栏 / JSON + dict 外包一层 |
 | 输出数据格式校验 | `services/output_transform.py` | ✅ | 4/7 键、`normalize_review_issues` |
 | 构建待审文本库（合流） | `services/result_merge.py` | ✅ | 同键 `\n` 拼接；`contract_type` 入参强制 |
-| 审查聚合器 | `services/result_merge.py` | ⚠️ | 哈希去重 + 严重度排序；与 Dify 多分支聚合仍可能不一致 |
+| 审查聚合器 | `services/result_merge.py` | ⚠️ | **去重**：`title`+`comment` 哈希；**排序**：严重度降序再 `title`；**final_output**：仅排除标题为 **模型审查降级提示** 的项（业务类「字段粗提降级」仍进 `comment_list`）；`summary.aggregation_success_count` / `aggregation_error_count` |
 | 最终输出 / 渲染 | `services/report_render.py` | ⚠️ | Markdown 较简 |
-| 验收矩阵 | `docs/DIFY_ACCEPTANCE_MATRIX.md` | ✅ | 第三阶段新增，可逐项对照 |
+| 验收矩阵 | `docs/DIFY_ACCEPTANCE_MATRIX.md` | ✅ | 可逐项对照 |
 
 ## 仍建议优先补齐的方向（❌/⚠️ 集中区）
 
-1. **HTTP 与具体合同平台对齐**：在通用 `HttpDocumentProvider` 上继续加签名字段、OAuth、非 GET 等（当前已支持路径模板 + JSON 路径 + 自定义头）。  
-2. **Dify 粗提/精提 LLM 语义对齐**：当前精提以规则占位为主，不等价 mode_23。  
-3. **附件 markdown 分支差异**（如 `nuber` vs `number`）与历史行格式的全量兼容。
+1. **HTTP 与具体合同平台对齐**：签名字段、OAuth、非 GET 等。  
+2. **精提与 Dify 完全等价**：8k 切片、多段并发、与来源库逐段对齐的 LLM 调用。  
+3. **附件 / 主文 markdown**：除 number/nuber 外若仍有历史 category 需兼容，可扩展白名单或配置。
+
+## 剩余差距与建议（第六阶段后）
+
+| 优先级 | 项 | 说明 |
+|--------|----|------|
+| 高 | 精提多段 LLM | 超长合同按 Dify 迭代切片并发抽取，避免单次截断 |
+| 中 | 审查聚合与 Dify 画布 | 多分支合并规则、errorCollection 与画布节点一一对照 |
+| 中 | Remote HTTP | 生产级鉴权与非 GET |
+| 低 | 待审对象字段库 JSON | 导出与 Dify 同结构的中间产物便于对账 |

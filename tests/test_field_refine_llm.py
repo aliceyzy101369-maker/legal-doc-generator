@@ -46,6 +46,7 @@ def test_llm_mode_merge_prefers_non_empty_llm(monkeypatch):
     )
     party = next(f for f in merged if f.field_key == "party_info")
     assert "全称" in party.value
+    assert "\n" in party.value  # LLM 精提与粗提同字段按 \\n 拼接，不覆盖
     assert party.evidence_paragraphs == [1]
 
 

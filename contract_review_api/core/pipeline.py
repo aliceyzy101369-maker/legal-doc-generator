@@ -31,7 +31,8 @@ from contract_review_api.services.output_transform import build_final_output
 from contract_review_api.services.report_render import build_summary, render_markdown
 from contract_review_api.services.review_task_builder import build_review_tasks
 from contract_review_api.services.ruleset_loader import load_review_rules
-from contract_review_api.services.result_merge import merge_issues
+from contract_review_api.services.result_merge import merge_issues, partition_issues_for_final_output
+from contract_review_api.services.source_library import assemble_source_inputs, build_source_library
 from contract_review_api.services.rule_engine import run_rule_review
 from contract_review_api.services.text_processing import build_paragraphs, chunk_tasks
 
@@ -60,6 +61,8 @@ def _prepare_contract_state(payload: ReviewCreateRequest, review_id: str, trace_
     base_text, remote_atts, local_paths, gather_warnings = gather_resolved_contract_bundle(payload, provider)
     budget = estimate_input_budget(base_text, remote_atts, local_paths)
     check_contract_input_budget(budget)
+
+    source_library = build_source_library(*assemble_source_inputs(base_text, remote_atts, local_paths))
 
     input_parse_mode = "plain"
     markdown_line_count = 0
@@ -93,6 +96,7 @@ def _prepare_contract_state(payload: ReviewCreateRequest, review_id: str, trace_
         review_rules,
         contract_type_override=payload.contract_type,
         contract_text=base_text,
+        source_library=source_library,
     )
 
     attachment_count = len(payload.attachment_paths) + len(payload.resolved_attachment_document_ids())
@@ -108,6 +112,7 @@ def _prepare_contract_state(payload: ReviewCreateRequest, review_id: str, trace_
         "input_parse_mode": input_parse_mode,
         "markdown_line_count": markdown_line_count,
         "attachment_count": attachment_count,
+        "source_library": source_library,
     }
 
 
@@ -207,7 +212,8 @@ def run_review_pipeline(payload: ReviewCreateRequest) -> ReviewResponse:
                     error_count += 1
 
     merged_issues = merge_issues(rule_issues or [], llm_issues or [])
-    final_output = build_final_output(merged_fields, merged_issues)
+    good_for_final, degraded_for_agg = partition_issues_for_final_output(merged_issues)
+    final_output = build_final_output(merged_fields, good_for_final)
 
     elapsed_ms = int((time.time() - start) * 1000)
     degraded_count = sum(1 for i in merged_issues if i.title == DEGRADED_ISSUE_TITLE)
@@ -232,6 +238,8 @@ def run_review_pipeline(payload: ReviewCreateRequest) -> ReviewResponse:
     summary["refined_field_count"] = len(merged_fields)
     summary["input_warnings"] = [*gather_warnings, *refine_warnings]
     summary["review_max_workers"] = _review_task_max_workers()
+    summary["aggregation_success_count"] = len(good_for_final)
+    summary["aggregation_error_count"] = len(degraded_for_agg)
 
     logger.info(
         "pipeline done trace_id=%s review_id=%s elapsed_ms=%s issues=%s comments=%s extracted=%s llm_calls=%s degraded=%s",
