@@ -1,0 +1,11 @@
+{
+  "slug": "case_basic_service_contract",
+  "input": {
+    "text": "甲方：北京甲公司\n\n乙方：上海乙公司\n\n项目名称：验收测试项目\n\n合同类型：服务合同\n\n自2026年1月1日至2026年12月31日",
+    "ruleset_ids": ["demo"]
+  },
+  "expected_min_fields": 1,
+  "expected_min_issues": 0,
+  "expected_summary_keys": ["trace_id", "coarse_field_count", "refined_field_count", "chunk_count", "attachment_count"],
+  "expected_behavior_notes": "Stub LLM; refined_field_count includes ruleset target_fields gap-fill rows."
+}

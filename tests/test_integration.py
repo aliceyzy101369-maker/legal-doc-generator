@@ -130,5 +130,17 @@ def test_summary_fields(client: TestClient) -> None:
     )
     assert resp.status_code == 200
     s = resp.json()["summary"]
-    for key in ("field_count", "rules_loaded_count", "review_task_count", "issue_count"):
+    for key in (
+        "field_count",
+        "rules_loaded_count",
+        "review_task_count",
+        "issue_count",
+        "trace_id",
+        "llm_call_count",
+        "degraded_count",
+        "chunk_count",
+        "attachment_count",
+        "coarse_field_count",
+        "refined_field_count",
+    ):
         assert key in s

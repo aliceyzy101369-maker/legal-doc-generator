@@ -1,0 +1,12 @@
+{
+  "slug": "case_with_attachments",
+  "input": {
+    "contract_id": "main-contract-stub",
+    "attachment_ids": ["att-stub-1"],
+    "ruleset_ids": ["demo"]
+  },
+  "expected_min_fields": 1,
+  "expected_min_issues": 0,
+  "expected_summary_keys": ["attachment_count", "input_warnings"],
+  "expected_behavior_notes": "Uses built-in stub registry ids; attachment merges without failing when optional body empty."
+}

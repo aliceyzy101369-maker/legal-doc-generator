@@ -1,0 +1,11 @@
+{
+  "slug": "case_markdown_lines",
+  "input": {
+    "text": "1##基本信息##甲方：北京甲公司\n2##基本信息##乙方：上海乙公司\n3##项目##项目名称：验收测试项目\n4##期限##自2026年1月1日至2026年12月31日",
+    "ruleset_ids": ["demo"]
+  },
+  "expected_min_fields": 1,
+  "expected_min_issues": 0,
+  "expected_summary_keys": ["markdown_line_count", "input_parse_mode"],
+  "expected_behavior_notes": "input_parse_mode should be markdown_lines for dry-run and review summaries."
+}

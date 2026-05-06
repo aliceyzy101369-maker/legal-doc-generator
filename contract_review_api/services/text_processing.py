@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Iterable, List
 
 from contract_review_api.core.models import Paragraph
+from contract_review_api.services.markdown_line_parser import is_dify_markdown_line_document, paragraphs_from_markdown_lines
 
 
 def _read_file(path: Path) -> str:
@@ -42,15 +43,28 @@ def split_into_paragraphs(review_id: str, text: str, doc_type: str) -> List[Para
     ]
 
 
-def build_paragraphs(review_id: str, base_text: str, files: Iterable[Path]) -> List[Paragraph]:
+def build_paragraphs(
+    review_id: str,
+    base_text: str,
+    files: Iterable[Path],
+    *,
+    extra_attachment_texts: Iterable[str] | None = None,
+) -> List[Paragraph]:
     paragraphs: List[Paragraph] = []
     if base_text.strip():
-        paragraphs.extend(split_into_paragraphs(review_id, base_text, "main_text"))
+        if is_dify_markdown_line_document(base_text):
+            paragraphs.extend(paragraphs_from_markdown_lines(review_id, base_text))
+        else:
+            paragraphs.extend(split_into_paragraphs(review_id, base_text, "main_text"))
 
-    for idx, path in enumerate(files):
+    paths = list(files)
+    for idx, path in enumerate(paths):
         text = _read_file(path)
         doc_type = "contract_file" if idx == 0 else "attachment"
         paragraphs.extend(split_into_paragraphs(review_id, text, doc_type))
+
+    for extra in list(extra_attachment_texts or []):
+        paragraphs.extend(split_into_paragraphs(review_id, extra or "", "attachment"))
     return paragraphs
 
 

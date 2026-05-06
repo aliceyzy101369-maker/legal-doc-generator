@@ -11,6 +11,7 @@ from fastapi import FastAPI, HTTPException
 
 from contract_review_api.api.schemas import ReviewCreateRequest, ReviewDryRunResponse, ReviewResponse
 from contract_review_api.core.pipeline import run_review_dry_run, run_review_pipeline
+from contract_review_api.services.document_provider import DocumentProviderConfigError
 from contract_review_api.services.input_ingest import InputIngestError
 from contract_review_api.services.ruleset_loader import RulesetLoadError, list_available_ruleset_ids
 from contract_review_api.storage.repository import ReviewRepository
@@ -37,6 +38,9 @@ def create_review(payload: ReviewCreateRequest) -> ReviewResponse:
     except InputIngestError as exc:
         logger.warning("review request validation failed: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except DocumentProviderConfigError as exc:
+        logger.warning("document provider configuration invalid: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RulesetLoadError as exc:
         logger.warning("review ruleset validation failed: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -55,6 +59,9 @@ def create_review_dry_run(payload: ReviewCreateRequest) -> ReviewDryRunResponse:
         result = run_review_dry_run(payload)
     except InputIngestError as exc:
         logger.warning("review dry-run validation failed: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except DocumentProviderConfigError as exc:
+        logger.warning("document provider configuration invalid: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RulesetLoadError as exc:
         logger.warning("review dry-run ruleset validation failed: %s", exc)
