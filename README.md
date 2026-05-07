@@ -13,6 +13,7 @@
   - Dify 风格 **主合同 id**：`contract_id` / `main_contract_id` / `file_id`（经可插拔 `DocumentProvider` 解析；默认 **stub** 内存假数据）
   - **附件 id**：`attachment_ids`、`file_ids`、`files`（别名列表）；缺失 id 记入 `summary.input_warnings`，**不导致整单 500**
   - `trace_id`：可选；未传则服务端生成 UUID，并写入 `summary.trace_id` 与结构化日志（**不记录合同全文**）
+  - **来源库补充（Dify §2.2 / src_1·src_4）**：`contract_subject`（写入来源库 **src=1**）、`business_info` 与 `enterprise_list`（合并写入 **src=4**）；`summary.source_slot_lens` 返回两槽字符长度
 - **字段提取（粗提 / 精提）**
   - **粗提**：`extract_field_candidates_coarse`（全量正则命中，`summary.coarse_field_count`）
   - **精提**：`refine_field_candidates`（默认 `FIELD_REFINE_MODE=regex` 或 `rules`：合流 + 规则 `target_fields` 占位，无字段 LLM）；`FIELD_REFINE_MODE=llm` 或 `LLM_FIELD_REFINE=true` 时以 **来源库 src=1..4**（`source_library.py`）序列化文本调用 LLM 抽取；**超长**时在 `LLM_MODE=real` 下按 `FIELD_REFINE_CHUNK_SIZE`（默认 8000，下限 2000）**分段请求**并合并；默认 **`FIELD_REFINE_CHUNK_SOFT_BREAK`** 在块尾窗口内优先 **换行处切断**（第九阶段）；`FIELD_REFINE_CHUNK_MAX_WORKERS>1` 时段内 **并行**（仍按下标顺序合并）；与粗提同字段 **\\n 拼接**；`LLM_MODE=stub` 时不发起抽取请求。
@@ -35,6 +36,8 @@
 
 - **无内置 HTTP 远程合同平台**：默认 `StubDocumentProvider`；`CONTRACT_DOCUMENT_PROVIDER=none` 时 **拒绝**仅用 id 的请求（400）。
 - **粗/精提**与 Dify 双 LLM 链路可能仍不一致；请以 `docs/DIFY_GAP_ANALYSIS.md` 与验收矩阵为准。
+
+**完整对照与阶段索引**：[`docs/WORKFLOW_TO_API.md`](docs/WORKFLOW_TO_API.md)（节点→API）、[`docs/DEVELOPMENT_MASTER.md`](docs/DEVELOPMENT_MASTER.md)（各 `DEVELOPMENT_PLAN_PHASE*.md` 索引）。
 
 ## 安装
 

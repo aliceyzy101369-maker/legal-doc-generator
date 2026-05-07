@@ -89,7 +89,13 @@ def gather_resolved_contract_bundle(
     return base_text, remote_attachment_texts, local_paths, warnings
 
 
-def estimate_input_budget(base_text: str, remote_attachment_texts: List[str], file_paths: List[Path]) -> int:
+def estimate_input_budget(
+    base_text: str,
+    remote_attachment_texts: List[str],
+    file_paths: List[Path],
+    *,
+    extra_chars: int = 0,
+) -> int:
     total = len(base_text or "")
     for t in remote_attachment_texts:
         total += len(t or "")
@@ -98,7 +104,7 @@ def estimate_input_budget(base_text: str, remote_attachment_texts: List[str], fi
             total += int(p.stat().st_size)
         except OSError:
             continue
-    return total
+    return total + max(0, int(extra_chars or 0))
 
 
 def check_contract_input_budget(total: int) -> None:

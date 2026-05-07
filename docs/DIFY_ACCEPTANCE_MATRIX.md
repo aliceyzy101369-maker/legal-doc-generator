@@ -5,7 +5,7 @@
 
 | 验收项 | Dify 行为（摘要） | 当前 API 行为（摘要） | 状态 | 验收方法 |
 |--------|-------------------|------------------------|------|----------|
-| 入参解析 | `params.input` JSON：文本、ruleset、合同类型、主/附件 id 等 | `ReviewCreateRequest`：`text` / 本地路径 / `contract_id` 等别名 / `trace_id` | 部分 | `tests/test_phase3_remote_input.py`、`tests/test_dify_acceptance.py` |
+| 入参解析 | `params.input` JSON：文本、ruleset、合同类型、主/附件 id 等 | `ReviewCreateRequest`：含 `contract_subject`、`business_info`、`enterprise_list`（src_1/src_4）等 | 部分 | `tests/test_workflow_dify_inputs.py`、`test_phase3_remote_input` |
 | 主合同文本获取 | 工具按 id 拉取 `textContent` | `stub` / **`http`（可配置 BASE_URL + path 模板 + Bearer）** / `none` | 部分 | HTTP 为**通用**适配层，非某一固定 SaaS；需按实际 API 调路径与 JSON 字段 |
 | 附件获取 | 迭代器拉附件并合并 | 远程 `attachment_ids` + 本地 `attachment_paths`；缺失附件记 `input_warnings` 不 500 | 部分 | `test_phase3_remote_input`、`case_with_attachments.json` |
 | markdown 行解析 | `pid##category##text`；A/B 分支 `number`/`nuber` | 解析全量行；**段落**仅保留 `number`/`nuber`（大小写不敏感）；dry-run `markdown_line_records` | 部分 | `tests/test_markdown_line_parser.py`、`case_markdown_lines.json` |

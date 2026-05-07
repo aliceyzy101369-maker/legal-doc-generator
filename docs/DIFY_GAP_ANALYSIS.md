@@ -7,7 +7,7 @@
 
 | Dify 节点 / 能力 | 主要代码位置 | 状态 | 说明 |
 |------------------|-------------|------|------|
-| 调取入参内容 | `api/schemas.py` + `services/input_ingest.py` | ✅ | 支持 `text` / 本地路径 / 主/附件 **id**（经 `DocumentProvider`）；`trace_id`；`contract_type` 覆盖 |
+| 调取入参内容 | `api/schemas.py` + `services/input_ingest.py` | ✅ | `text` / 路径 / 主附件 **id**；`trace_id`；`contract_type`；**`contract_subject` / `business_info` / `enterprise_list`**（来源库 src_1 / src_4）；`summary.source_slot_lens` |
 | 获取合同文本 / 附件（远程 id） | `services/document_provider.py` + `input_ingest.gather_resolved_contract_bundle` | ⚠️ | **stub** 内存表；**http** 可配置路径模板、**JSON 点路径**正文抽取、**额外 Header**；`none` 禁用；附件拉取失败软降级 |
 | 获取合同文本 / 附件 markdown | `services/text_processing.py` | ⚠️ | 本地文件 + 远程拉取文本合并；行级段落构建见下行 |
 | Dify 行级 markdown | `services/markdown_line_parser.py` + `text_processing.build_paragraphs` | ⚠️ | `pid##category##text` 解析；**段落构建**仅保留 `category` 为 **number / nuber**（大小写不敏感）的行，对齐 Dify A/B 分支过滤词 |

@@ -6,7 +6,7 @@ This document maps the original workflow-node style execution into code modules 
 
 | Workflow Node | Standalone Module | Responsibility |
 |---|---|---|
-| 调取入参内容 | `services.input_ingest` | Normalize request payload and source metadata |
+| 调取入参内容 | `services.input_ingest` + `api.schemas` | Normalize payload；`contract_subject` / `business_info` / `enterprise_list` → 来源库 src_1 / src_4 |
 | 获取合同文本 / 获取主合同和附件markdown | `services.text_processing` | Parse file/text, merge main + attachment content |
 | 构建字段提取任务 / 迭代器 | `services.field_extraction` | Build field extraction tasks and candidate values |
 | 构建待审对象字段库 | `services.pending_field_library` + `core.pipeline` | Export deduped `target_fields` (excl. src=0 / mode=0) into `summary.pending_object_field_library` |

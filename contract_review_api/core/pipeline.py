@@ -64,10 +64,19 @@ def _trace_id_for(payload: ReviewCreateRequest) -> str:
 def _prepare_contract_state(payload: ReviewCreateRequest, review_id: str, trace_id: str) -> dict:
     provider = get_document_provider()
     base_text, remote_atts, local_paths, gather_warnings = gather_resolved_contract_bundle(payload, provider)
-    budget = estimate_input_budget(base_text, remote_atts, local_paths)
+    extra_budget = len(str(payload.contract_subject or "")) + len(payload.resolved_src4_business_slot())
+    budget = estimate_input_budget(base_text, remote_atts, local_paths, extra_chars=extra_budget)
     check_contract_input_budget(budget)
 
-    source_library = build_source_library(*assemble_source_inputs(base_text, remote_atts, local_paths))
+    source_library = build_source_library(
+        *assemble_source_inputs(
+            base_text,
+            remote_atts,
+            local_paths,
+            contract_subject=str(payload.contract_subject or "").strip(),
+            business_info=payload.resolved_src4_business_slot(),
+        )
+    )
 
     input_parse_mode = "plain"
     markdown_line_count = 0
@@ -270,6 +279,10 @@ def run_review_pipeline(payload: ReviewCreateRequest) -> ReviewResponse:
         "mode_1": len(fet.get("mode_1") or []),
         "mode_23": len(fet.get("mode_23") or []),
     }
+    summary["source_slot_lens"] = {
+        "src1_contract_subject": len(str(payload.contract_subject or "").strip()),
+        "src4_business_slot": len(payload.resolved_src4_business_slot()),
+    }
 
     logger.info(
         "pipeline done trace_id=%s review_id=%s elapsed_ms=%s issues=%s comments=%s extracted=%s llm_calls=%s degraded=%s",
@@ -283,7 +296,13 @@ def run_review_pipeline(payload: ReviewCreateRequest) -> ReviewResponse:
         degraded_count,
     )
 
-    markdown = render_markdown(merged_fields, merged_issues, review_id)
+    markdown = render_markdown(
+        merged_fields,
+        merged_issues,
+        review_id,
+        final_comment_count=len(final_output.comment_list),
+        extracted_info_count=len(final_output.extracted_info),
+    )
 
     return ReviewResponse(
         review_id=request_meta.review_id,
@@ -366,6 +385,10 @@ def run_review_dry_run(payload: ReviewCreateRequest) -> ReviewDryRunResponse:
     dry_summary["field_extraction_task_counts"] = {
         "mode_1": len(fet.get("mode_1") or []),
         "mode_23": len(fet.get("mode_23") or []),
+    }
+    dry_summary["source_slot_lens"] = {
+        "src1_contract_subject": len(str(payload.contract_subject or "").strip()),
+        "src4_business_slot": len(payload.resolved_src4_business_slot()),
     }
 
     return ReviewDryRunResponse(

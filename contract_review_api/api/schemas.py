@@ -17,6 +17,20 @@ class ReviewCreateRequest(BaseModel):
     )
     trace_id: Optional[str] = Field(default=None, description="Optional trace id for logs / summary")
 
+    # Dify workflow §2.2: optional slots for 构建字段取值来源库 (src_1 / src_4)
+    contract_subject: Optional[str] = Field(
+        default=None,
+        description="Optional text for source slot src=1 (合同主体等)，与主合同正文分离",
+    )
+    business_info: Optional[str] = Field(
+        default=None,
+        description="Optional text for source slot src=4 (工商信息等)",
+    )
+    enterprise_list: Optional[str] = Field(
+        default=None,
+        description="Optional JSON string or plain text (企业列表等)，与 business_info 一并写入 src=4",
+    )
+
     # Dify-style remote ids (resolved via DocumentProvider; default stub in dev/tests)
     contract_id: Optional[str] = None
     main_contract_id: Optional[str] = None
@@ -44,6 +58,17 @@ class ReviewCreateRequest(BaseModel):
             seen.add(t)
             out.append(t)
         return out
+
+    def resolved_src4_business_slot(self) -> str:
+        """Merge business_info + enterprise_list for source_library src=4."""
+        parts: list[str] = []
+        b = str(self.business_info or "").strip()
+        if b:
+            parts.append(b)
+        e = str(self.enterprise_list or "").strip()
+        if e:
+            parts.append(e)
+        return "\n\n".join(parts)
 
 
 class FieldOutput(BaseModel):

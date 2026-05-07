@@ -5,24 +5,41 @@ from typing import List
 from contract_review_api.core.models import FieldCandidate, ReviewIssue
 
 
-def render_markdown(fields: List[FieldCandidate], issues: List[ReviewIssue], review_id: str) -> str:
-    lines: List[str] = [f"# Contract Review Report", f"", f"- review_id: `{review_id}`", ""]
+def render_markdown(
+    fields: List[FieldCandidate],
+    issues: List[ReviewIssue],
+    review_id: str,
+    *,
+    final_comment_count: int | None = None,
+    extracted_info_count: int | None = None,
+) -> str:
+    lines: List[str] = [
+        "# 合同审查报告",
+        "",
+        f"- **review_id**: `{review_id}`",
+    ]
+    if final_comment_count is not None:
+        lines.append(f"- **标准化审查意见条数**（final_output.comment_list）: {final_comment_count}")
+    if extracted_info_count is not None:
+        lines.append(f"- **提取信息条数**（final_output.extracted_info）: {extracted_info_count}")
+    lines.append("")
 
-    lines.append("## Extracted Fields")
+    lines.append("## 提取字段（合并后）")
     if not fields:
-        lines.append("- (none)")
+        lines.append("- （无）")
     for field in fields:
         lines.append(
-            f"- `{field.field_key}`: {field.value or '(empty)'} "
-            f"(confidence={field.confidence:.2f}, evidence={field.evidence_paragraphs})"
+            f"- `{field.field_key}`: {field.value or '（空）'} "
+            f"（confidence={field.confidence:.2f}，evidence={field.evidence_paragraphs}）"
         )
 
     lines.append("")
-    lines.append("## Review Issues")
+    lines.append("## 审查问题（含规则 + 模型，聚合前）")
     if not issues:
-        lines.append("- (none)")
+        lines.append("- （无）")
     for issue in issues:
-        lines.append(f"- [{issue.degree}] {issue.title}: {issue.comment}")
+        cat = getattr(issue, "category", 0)
+        lines.append(f"- **[{issue.degree}]** [{issue.title}]（category={cat}）: {issue.comment}")
     lines.append("")
     return "\n".join(lines)
 

@@ -148,5 +148,6 @@ def test_summary_fields(client: TestClient) -> None:
         "pending_object_field_library",
         "source_library_meta",
         "field_extraction_task_counts",
+        "source_slot_lens",
     ):
         assert key in s

@@ -91,6 +91,9 @@ async def create_review_upload(
     main_contract_id: str | None = Form(None),
     contract_id: str | None = Form(None),
     file_id: str | None = Form(None),
+    contract_subject: str | None = Form(None),
+    business_info: str | None = Form(None),
+    enterprise_list: str | None = Form(None),
 ) -> ReviewResponse:
     """
     Browser-friendly multipart ingest: main file and/or pasted text and/or remote main id.
@@ -146,6 +149,9 @@ async def create_review_upload(
                 contract_id=cid,
                 main_contract_id=mid,
                 file_id=fid,
+                contract_subject=contract_subject,
+                business_info=business_info,
+                enterprise_list=enterprise_list,
             )
             result = run_review_pipeline(payload)
     except InputIngestError as exc:
