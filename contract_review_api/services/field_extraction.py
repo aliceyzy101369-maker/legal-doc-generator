@@ -139,8 +139,9 @@ def refine_field_candidates(
     """
     Mode-23 style: merge + gap-fill target_fields from rules + optional contract_type override.
 
-    FIELD_REFINE_MODE=llm: run LLM extraction on contract_text (when provided); non-empty LLM values
-    override coarse merge per field; coarse still fills gaps. rules target_fields still gap-filled.
+    FIELD_REFINE_MODE=llm: run LLM extraction on source_library / contract_text; non-empty LLM values
+    are merged with coarse per field using \\n. Long texts use chunked extraction in llm_engine (real mode).
+    rules target_fields still gap-filled.
 
     Returns (refined_fields, warnings).
     """

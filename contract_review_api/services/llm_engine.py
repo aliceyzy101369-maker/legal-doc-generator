@@ -143,6 +143,85 @@ def _field_refine_text_limit() -> int:
         return 120000
 
 
+def _field_refine_chunk_size() -> int:
+    raw = os.getenv("FIELD_REFINE_CHUNK_SIZE", "8000") or "8000"
+    try:
+        return max(2000, min(int(raw), 32000))
+    except ValueError:
+        return 8000
+
+
+def _field_refine_max_chunks() -> int:
+    raw = os.getenv("FIELD_REFINE_MAX_CHUNKS", "64") or "64"
+    try:
+        return max(1, min(int(raw), 256))
+    except ValueError:
+        return 64
+
+
+def _field_refine_use_chunks() -> bool:
+    return str(os.getenv("FIELD_REFINE_USE_CHUNKS", "true") or "true").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+
+
+def _chunk_text_for_field_refine(text: str, chunk_size: int, max_chunks: int) -> list[str]:
+    if not text:
+        return []
+    if len(text) <= chunk_size:
+        return [text]
+    out: list[str] = []
+    for i in range(0, len(text), chunk_size):
+        if len(out) >= max_chunks:
+            break
+        out.append(text[i : i + chunk_size])
+    return out
+
+
+def _merge_llm_field_map_parts(
+    left: dict[str, dict[str, Any]], right: dict[str, dict[str, Any]]
+) -> dict[str, dict[str, Any]]:
+    """Merge multi-chunk extraction maps: same key joins value with \\n; union evidence; max confidence."""
+    out: dict[str, dict[str, Any]] = dict(left)
+    for key, spec in right.items():
+        rv = str(spec.get("value", "") or "").strip()
+        if not rv:
+            continue
+        if key not in out:
+            out[key] = {**spec}
+            continue
+        cur = out[key]
+        lv = str(cur.get("value", "") or "").strip()
+        ev_l = _normalize_int_list(cur.get("evidence_paragraphs", []))
+        ev_r = _normalize_int_list(spec.get("evidence_paragraphs", []))
+        try:
+            c_l = float(cur.get("confidence", 0.85))
+        except (TypeError, ValueError):
+            c_l = 0.85
+        try:
+            c_r = float(spec.get("confidence", 0.85))
+        except (TypeError, ValueError):
+            c_r = 0.85
+        if not lv:
+            out[key] = {"value": rv, "evidence_paragraphs": ev_r, "confidence": c_r}
+        elif lv == rv:
+            out[key] = {
+                "value": lv,
+                "evidence_paragraphs": sorted(set(ev_l + ev_r)),
+                "confidence": max(c_l, c_r),
+            }
+        else:
+            out[key] = {
+                "value": f"{lv}\n{rv}",
+                "evidence_paragraphs": sorted(set(ev_l + ev_r)),
+                "confidence": max(c_l, c_r),
+            }
+    return out
+
+
 def _call_real_model(
     prompt_input: str,
     *,
@@ -264,35 +343,21 @@ def _normalize_int(value: Any, fallback: int = 0) -> int:
         return fallback
 
 
-def run_llm_field_extraction(contract_text: str, field_names: List[str]) -> tuple[dict[str, dict[str, Any]], list[str]]:
-    """
-    Dify mode_23-style semantic field extraction from full contract text.
-    Returns (normalized_map field_key -> {value, evidence_paragraphs, confidence}, warnings).
-
-    LLM_MODE=stub: no HTTP; returns ({}, []).
-    LLM_MODE=real: OpenAI-compatible chat/completions; failures yield {} + warnings.
-    """
+def _run_llm_field_extraction_one(
+    contract_text: str,
+    field_names: List[str],
+    *,
+    api_key: str,
+    base_url: str,
+    model: str,
+    timeout_sec: int,
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    """Single HTTP completion for one contract text segment."""
     warnings: list[str] = []
-    mode = str(os.getenv("LLM_MODE", "stub")).strip().lower()
-    if mode != "real":
-        return {}, []
-
-    api_key = str(os.getenv("LLM_API_KEY", "")).strip()
-    base_url = str(os.getenv("LLM_BASE_URL", "")).strip().rstrip("/")
-    model = str(os.getenv("LLM_MODEL", "")).strip()
-    if not api_key or not base_url or not model:
-        warnings.append("llm_field_refine_missing_env")
-        return {}, warnings
-
-    limit = _field_refine_text_limit()
-    text = contract_text if len(contract_text) <= limit else contract_text[:limit]
-    if len(contract_text) > limit:
-        warnings.append("llm_field_refine_text_truncated")
-
     unique_names = sorted({str(x).strip() for x in field_names if str(x).strip()})
     payload = {
         "fields_to_extract": unique_names,
-        "contract_text": text,
+        "contract_text": contract_text,
         "output_contract": (
             "一个 JSON 对象：键必须为上述字段名之一；值为 "
             '{"value": string, "evidence_paragraphs": number[]} ；'
@@ -305,11 +370,6 @@ def run_llm_field_extraction(contract_text: str, field_names: List[str]) -> tupl
         "仅输出一个 JSON 对象。键为字段名，值为 {\"value\": string, \"evidence_paragraphs\": number[]}。"
         "evidence_paragraphs 为可选；若无段落编号则使用空数组。"
     )
-    try:
-        timeout_sec = int(os.getenv("FIELD_REFINE_LLM_TIMEOUT", "120") or "120")
-    except ValueError:
-        timeout_sec = 120
-    timeout_sec = max(10, min(timeout_sec, 600))
     try:
         raw = _call_real_model(
             prompt_input,
@@ -332,6 +392,74 @@ def run_llm_field_extraction(contract_text: str, field_names: List[str]) -> tupl
         return {}, warnings
 
     return _normalize_llm_field_map(obj), warnings
+
+
+def run_llm_field_extraction(contract_text: str, field_names: List[str]) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    """
+    Dify mode_23-style semantic field extraction from full contract text.
+    Returns (normalized_map field_key -> {value, evidence_paragraphs, confidence}, warnings).
+
+    LLM_MODE=stub: no HTTP; returns ({}, []).
+    LLM_MODE=real: OpenAI-compatible chat/completions; long text is split into chunks
+    (FIELD_REFINE_CHUNK_SIZE, default 8000) unless FIELD_REFINE_USE_CHUNKS=false.
+    """
+    warnings: list[str] = []
+    mode = str(os.getenv("LLM_MODE", "stub")).strip().lower()
+    if mode != "real":
+        return {}, []
+
+    api_key = str(os.getenv("LLM_API_KEY", "")).strip()
+    base_url = str(os.getenv("LLM_BASE_URL", "")).strip().rstrip("/")
+    model = str(os.getenv("LLM_MODEL", "")).strip()
+    if not api_key or not base_url or not model:
+        warnings.append("llm_field_refine_missing_env")
+        return {}, warnings
+
+    limit = _field_refine_text_limit()
+    text = contract_text if len(contract_text) <= limit else contract_text[:limit]
+    if len(contract_text) > limit:
+        warnings.append("llm_field_refine_text_truncated")
+
+    try:
+        timeout_sec = int(os.getenv("FIELD_REFINE_LLM_TIMEOUT", "120") or "120")
+    except ValueError:
+        timeout_sec = 120
+    timeout_sec = max(10, min(timeout_sec, 600))
+
+    chunk_size = _field_refine_chunk_size()
+    max_chunks = _field_refine_max_chunks()
+    use_chunks = _field_refine_use_chunks() and len(text) > chunk_size
+
+    if not use_chunks:
+        return _run_llm_field_extraction_one(
+            text,
+            field_names,
+            api_key=api_key,
+            base_url=base_url,
+            model=model,
+            timeout_sec=timeout_sec,
+        )
+
+    chunks = _chunk_text_for_field_refine(text, chunk_size, max_chunks)
+    if len(chunks) > 1:
+        warnings.append(f"llm_field_refine_chunked:{len(chunks)}")
+    if len(text) > len("".join(chunks)):
+        warnings.append("llm_field_refine_chunk_cap_truncated")
+
+    merged: dict[str, dict[str, Any]] = {}
+    for ch in chunks:
+        part, w = _run_llm_field_extraction_one(
+            ch,
+            field_names,
+            api_key=api_key,
+            base_url=base_url,
+            model=model,
+            timeout_sec=timeout_sec,
+        )
+        warnings.extend(w)
+        merged = _merge_llm_field_map_parts(merged, part)
+
+    return merged, warnings
 
 
 def _normalize_llm_field_map(obj: dict[str, Any]) -> dict[str, dict[str, Any]]:

@@ -14,7 +14,7 @@
 | 构建字段取值来源库（src_1..4） | `services/source_library.py` + `core/pipeline.py` | ✅ | `build_source_library` 固定 4 项；`assemble_source_inputs` 从主文/附件路径组装；**精提 LLM** 优先用 `format_source_library_for_llm`；无独立持久化 JSON 产物 |
 | 获取审查规则集 / 展开 rules | `services/ruleset_loader.py` | ✅ | 内置 + 文件 ruleset |
 | 构建待审对象字段库 | `services/review_task_builder.py`（部分） | ⚠️ | 仍无 Dify 同名中间 JSON；逻辑在任务构建中体现 |
-| 粗提 / 精提双链路 | `services/field_extraction.py` + `pipeline.py` | ⚠️ | **粗提**=正则；**默认** `FIELD_REFINE_MODE=regex`（与 `rules` 同义）= 合流 + 规则占位；**llm** = 来源库/全文 LLM 抽取，与粗提同字段 **\\n 拼接**；**未**复刻精提 8k 多段并发 |
+| 粗提 / 精提双链路 | `services/field_extraction.py` + `pipeline.py` + `llm_engine.run_llm_field_extraction` | ⚠️ | **粗提**=正则；**默认** `FIELD_REFINE_MODE=regex` = 合流 + 规则占位；**llm** = 来源库/全文 LLM 抽取，与粗提 **\\n 拼接**；`LLM_MODE=real` 下按 `FIELD_REFINE_CHUNK_SIZE` **顺序多段**合并；**未**复刻 Dify **并发**切片 |
 | 粗提/精提切片（limit=8000） | `services/text_processing.py` + `core/pipeline.py` | ✅ | `chunk_tasks` 在任务构建之后 |
 | 构建审查任务队列 | `services/review_task_builder.py` + `pipeline.py` | ✅ | 回填、`empty_policy`、anchor、limit |
 | 迭代器并发审查 | `core/pipeline.py` | ⚠️ | `REVIEW_TASK_MAX_WORKERS`（默认 10，可改）；与 Dify 画布并发仍可能因任务拆分不同而不等价 |
@@ -29,7 +29,7 @@
 ## 仍建议优先补齐的方向（❌/⚠️ 集中区）
 
 1. **HTTP 与具体合同平台对齐**：签名字段、OAuth、非 GET 等。  
-2. **精提与 Dify 完全等价**：8k 切片、多段并发、与来源库逐段对齐的 LLM 调用。  
+2. **精提与 Dify 完全等价**：分段 **并发**、切片边界（段落/标题）与来源库逐段对齐。  
 3. **附件 / 主文 markdown**：除 number/nuber 外若仍有历史 category 需兼容，可扩展白名单或配置。
 
 ## 剩余差距与建议（第六阶段后）
