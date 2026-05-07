@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import concurrent.futures
 import json
 import logging
 import os
@@ -7,6 +8,7 @@ import socket
 import ssl
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, List
 
@@ -157,6 +159,15 @@ def _field_refine_max_chunks() -> int:
         return max(1, min(int(raw), 256))
     except ValueError:
         return 64
+
+
+def _field_refine_chunk_max_workers() -> int:
+    """Parallel field-refine chunk calls; default 1 = sequential (same as single-threaded merge order)."""
+    raw = os.getenv("FIELD_REFINE_CHUNK_MAX_WORKERS", "1") or "1"
+    try:
+        return max(1, min(int(raw), 16))
+    except ValueError:
+        return 1
 
 
 def _field_refine_use_chunks() -> bool:
@@ -402,6 +413,7 @@ def run_llm_field_extraction(contract_text: str, field_names: List[str]) -> tupl
     LLM_MODE=stub: no HTTP; returns ({}, []).
     LLM_MODE=real: OpenAI-compatible chat/completions; long text is split into chunks
     (FIELD_REFINE_CHUNK_SIZE, default 8000) unless FIELD_REFINE_USE_CHUNKS=false.
+    FIELD_REFINE_CHUNK_MAX_WORKERS>1 runs chunk calls in parallel; results merge in chunk order.
     """
     warnings: list[str] = []
     mode = str(os.getenv("LLM_MODE", "stub")).strip().lower()
@@ -446,20 +458,91 @@ def run_llm_field_extraction(contract_text: str, field_names: List[str]) -> tupl
     if len(text) > len("".join(chunks)):
         warnings.append("llm_field_refine_chunk_cap_truncated")
 
-    merged: dict[str, dict[str, Any]] = {}
-    for ch in chunks:
-        part, w = _run_llm_field_extraction_one(
-            ch,
-            field_names,
-            api_key=api_key,
-            base_url=base_url,
-            model=model,
-            timeout_sec=timeout_sec,
+    workers = _field_refine_chunk_max_workers()
+    merged, chunk_warnings = _run_llm_field_extraction_chunks(
+        chunks,
+        field_names,
+        workers=workers,
+        api_key=api_key,
+        base_url=base_url,
+        model=model,
+        timeout_sec=timeout_sec,
+        extraction_fn=None,
+    )
+    warnings.extend(chunk_warnings)
+    if len(chunks) > 1 and workers > 1:
+        warnings.append(f"llm_field_refine_chunk_parallel:{workers}")
+        logger.info(
+            "llm field refine parallel chunk_count=%s workers=%s field_name_count=%s",
+            len(chunks),
+            workers,
+            len(field_names),
         )
-        warnings.extend(w)
-        merged = _merge_llm_field_map_parts(merged, part)
 
     return merged, warnings
+
+
+def _run_llm_field_extraction_chunks(
+    chunks: list[str],
+    field_names: List[str],
+    *,
+    workers: int,
+    api_key: str,
+    base_url: str,
+    model: str,
+    timeout_sec: int,
+    extraction_fn: Callable[..., tuple[dict[str, dict[str, Any]], list[str]]] | None = None,
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    """Run per-chunk extraction; merge maps in chunk index order (stable vs completion order)."""
+    warnings: list[str] = []
+    if not chunks:
+        return {}, warnings
+
+    one = extraction_fn or _run_llm_field_extraction_one
+
+    if workers <= 1 or len(chunks) == 1:
+        merged: dict[str, dict[str, Any]] = {}
+        for ch in chunks:
+            part, w = one(
+                ch,
+                field_names,
+                api_key=api_key,
+                base_url=base_url,
+                model=model,
+                timeout_sec=timeout_sec,
+            )
+            warnings.extend(w)
+            merged = _merge_llm_field_map_parts(merged, part)
+        return merged, warnings
+
+    indexed_results: list[tuple[int, dict[str, dict[str, Any]], list[str]]] = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        future_to_idx = {
+            pool.submit(
+                one,
+                ch,
+                field_names,
+                api_key=api_key,
+                base_url=base_url,
+                model=model,
+                timeout_sec=timeout_sec,
+            ): idx
+            for idx, ch in enumerate(chunks)
+        }
+        for fut in concurrent.futures.as_completed(future_to_idx):
+            idx = future_to_idx[fut]
+            try:
+                part, w = fut.result()
+            except Exception as exc:
+                warnings.append(f"llm_field_refine_chunk_worker_error:{type(exc).__name__}")
+                part, w = {}, []
+            indexed_results.append((idx, part, w))
+
+    merged_parallel: dict[str, dict[str, Any]] = {}
+    for idx, part, w in sorted(indexed_results, key=lambda x: x[0]):
+        warnings.extend(w)
+        merged_parallel = _merge_llm_field_map_parts(merged_parallel, part)
+    return merged_parallel, warnings
 
 
 def _normalize_llm_field_map(obj: dict[str, Any]) -> dict[str, dict[str, Any]]:
