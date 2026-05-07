@@ -14,7 +14,7 @@
 | 构建字段取值来源库（src_1..4） | `services/source_library.py` + `core/pipeline.py` | ✅ | `build_source_library` 固定 4 项；`assemble_source_inputs` 从主文/附件路径组装；**精提 LLM** 优先用 `format_source_library_for_llm`；无独立持久化 JSON 产物 |
 | 获取审查规则集 / 展开 rules | `services/ruleset_loader.py` | ✅ | 内置 + 文件 ruleset |
 | 构建待审对象字段库 | `services/pending_field_library.py` + `core/pipeline.py` | ✅ | `build_pending_object_field_library` 按工作流 4.4 过滤 `target_fields`（去 `src==0` / `mode==0`）、按 `name` 去重；**dry-run** `summary.source_library` + `pending_object_field_library`；正式 **`summary.pending_object_field_library`** + **`source_library_meta`**（仅长度，避免重复超大正文） |
-| 构建字段提取任务（§5.1） | `services/field_extraction_tasks.py` + `pipeline.py` | ⚠️ | **dry-run**：`summary.field_extraction_tasks`（`mode_1` / `mode_23` 列表）；**正式**：仅 `field_extraction_task_counts`；任务行未展开 **`src→content`** 映射（仍由 `review_tasks` + 主链承担） |
+| 构建字段提取任务（§5.1） | `services/field_extraction_tasks.py` + `pipeline.py` | ⚠️ | **dry-run**：`field_extraction_tasks` 每行带 **`source_preview`**（`src→content` 截断，可配置）；**正式**：仅 `field_extraction_task_counts` |
 | 粗提 / 精提双链路 | `services/field_extraction.py` + `pipeline.py` + `llm_engine.run_llm_field_extraction` | ⚠️ | **粗提**=正则；**默认** `FIELD_REFINE_MODE=regex` = 合流 + 规则占位；**llm** = 来源库/全文 LLM 抽取，与粗提 **\\n 拼接**；`LLM_MODE=real` 下多段合并，**换行软切分**（可关）+ 可选 **并行**；**未**复刻 Dify **标题/空行段落级**切片 |
 | 粗提/精提切片（limit=8000） | `services/text_processing.py` + `core/pipeline.py` | ✅ | `chunk_tasks` 在任务构建之后 |
 | 构建审查任务队列 | `services/review_task_builder.py` + `pipeline.py` | ✅ | 回填、`empty_policy`、anchor、limit |
@@ -40,4 +40,4 @@
 | 高 | 精提多段 LLM | 超长合同按 Dify 迭代切片并发抽取，避免单次截断 |
 | 中 | 审查聚合与 Dify 画布 | 多分支合并规则、errorCollection 与画布节点一一对照 |
 | 中 | Remote HTTP | 生产级鉴权与非 GET |
-| 低 | 工作流 §5.1 任务行内联来源 | 每任务附带 `src→content` 片段（与 Dify 脚本输出逐字段对齐） |
+| 低 | 工作流 §5.1 全量正文内联 | dry-run 默认预览非全文；若需整段 `src` 正文可提预览上限或另开导出 |

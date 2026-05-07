@@ -106,3 +106,5 @@ def test_review_dry_run_endpoint():
     assert "field_extraction_tasks" in s
     assert set(s["field_extraction_tasks"].keys()) == {"mode_1", "mode_23"}
     assert "field_extraction_task_counts" in s
+    m1 = s["field_extraction_tasks"]["mode_1"]
+    assert m1 and "source_preview" in m1[0] and "source_matched_src" in m1[0]
