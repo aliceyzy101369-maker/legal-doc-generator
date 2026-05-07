@@ -31,6 +31,7 @@ from contract_review_api.services.output_transform import build_final_output
 from contract_review_api.services.report_render import build_summary, render_markdown
 from contract_review_api.services.review_task_builder import build_review_tasks
 from contract_review_api.services.ruleset_loader import load_review_rules
+from contract_review_api.services.field_extraction_tasks import build_field_extraction_task_split
 from contract_review_api.services.pending_field_library import build_pending_object_field_library
 from contract_review_api.services.result_merge import merge_issues, partition_issues_for_final_output
 from contract_review_api.services.source_library import assemble_source_inputs, build_source_library
@@ -92,6 +93,7 @@ def _prepare_contract_state(payload: ReviewCreateRequest, review_id: str, trace_
 
     review_rules = load_review_rules(payload.ruleset_ids)
     pending_object_field_library = build_pending_object_field_library(review_rules)
+    field_extraction_tasks = build_field_extraction_task_split(pending_object_field_library)
     coarse = extract_field_candidates_coarse(paragraphs)
     merged_fields, refine_warnings = refine_field_candidates(
         coarse,
@@ -116,6 +118,7 @@ def _prepare_contract_state(payload: ReviewCreateRequest, review_id: str, trace_
         "attachment_count": attachment_count,
         "source_library": source_library,
         "pending_object_field_library": pending_object_field_library,
+        "field_extraction_tasks": field_extraction_tasks,
     }
 
 
@@ -259,6 +262,11 @@ def run_review_pipeline(payload: ReviewCreateRequest) -> ReviewResponse:
     summary["aggregation_error_count"] = len(degraded_for_agg)
     summary["pending_object_field_library"] = st.get("pending_object_field_library") or []
     summary["source_library_meta"] = _source_library_meta(st.get("source_library") or [])
+    fet = st.get("field_extraction_tasks") or {"mode_1": [], "mode_23": []}
+    summary["field_extraction_task_counts"] = {
+        "mode_1": len(fet.get("mode_1") or []),
+        "mode_23": len(fet.get("mode_23") or []),
+    }
 
     logger.info(
         "pipeline done trace_id=%s review_id=%s elapsed_ms=%s issues=%s comments=%s extracted=%s llm_calls=%s degraded=%s",
@@ -346,6 +354,12 @@ def run_review_dry_run(payload: ReviewCreateRequest) -> ReviewDryRunResponse:
     dry_summary["pending_object_field_library"] = st.get("pending_object_field_library") or []
     dry_summary["source_library"] = st.get("source_library") or []
     dry_summary["source_library_meta"] = _source_library_meta(st.get("source_library") or [])
+    dry_summary["field_extraction_tasks"] = st.get("field_extraction_tasks") or {"mode_1": [], "mode_23": []}
+    fet = dry_summary["field_extraction_tasks"]
+    dry_summary["field_extraction_task_counts"] = {
+        "mode_1": len(fet.get("mode_1") or []),
+        "mode_23": len(fet.get("mode_23") or []),
+    }
 
     return ReviewDryRunResponse(
         summary=dry_summary,

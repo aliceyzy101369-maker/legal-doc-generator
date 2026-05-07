@@ -53,6 +53,7 @@ def test_summary_contains_trace_and_counts(client: TestClient) -> None:
         "aggregation_error_count",
         "pending_object_field_library",
         "source_library_meta",
+        "field_extraction_task_counts",
     ):
         assert key in s
     assert s["trace_id"] == "trace-integration-1"

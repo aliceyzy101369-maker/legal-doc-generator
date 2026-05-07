@@ -103,3 +103,6 @@ def test_review_dry_run_endpoint():
     assert "pending_object_field_library" in s and len(s["pending_object_field_library"]) >= 1
     assert "source_library" in s and len(s["source_library"]) == 4
     assert "source_library_meta" in s and len(s["source_library_meta"]) == 4
+    assert "field_extraction_tasks" in s
+    assert set(s["field_extraction_tasks"].keys()) == {"mode_1", "mode_23"}
+    assert "field_extraction_task_counts" in s

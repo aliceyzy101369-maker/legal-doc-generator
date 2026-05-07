@@ -11,7 +11,8 @@
 | markdown 行解析 | `pid##category##text`；A/B 分支 `number`/`nuber` | 解析全量行；**段落**仅保留 `number`/`nuber`（大小写不敏感）；dry-run `markdown_line_records` | 部分 | `tests/test_markdown_line_parser.py`、`case_markdown_lines.json` |
 | 粗提 | mode_1 多轮/切片 | `extract_field_candidates_coarse`：全量正则命中 | 部分 | 对照合同样本；`summary.coarse_field_count` |
 | 取值来源库 | src=1..4 | `build_source_library` + `assemble_source_inputs`；精提 LLM 用 `format_source_library_for_llm`；dry-run 暴露完整 `source_library` | 部分 | `tests/test_source_library.py` |
-| 待审对象字段库 | §4.4 过滤 target_fields | `build_pending_object_field_library`；`summary` + dry-run | 部分 | `tests/test_pending_field_library.py`；未导出 mode_1/mode_23 任务拆分表（§5.1） |
+| 待审对象字段库 | §4.4 过滤 target_fields | `build_pending_object_field_library`；`summary` + dry-run | 部分 | `tests/test_pending_field_library.py` |
+| 字段提取任务 §5.1 | mode_1 / mode_23 列表 | dry-run：`field_extraction_tasks`；review：`field_extraction_task_counts` | 部分 | `tests/test_field_extraction_tasks.py`；任务项未内嵌 src→正文映射 |
 | 精提 | mode_23 补全规范化 | 默认 `regex`：合流 + 占位；`llm`：分段 LLM，换行软切分 + 可选并行，合并后与粗提 **\\n 拼接** | 部分 | `test_field_refine_llm.py`、`test_field_refine_chunking.py`；未做标题级切片 |
 | 规则加载 | ruleset API | `ruleset_loader` 内置 + JSON 文件 | 通过 | `tests/test_ruleset_loader.py` |
 | 审查任务构建 | 回填、empty_policy、anchor、limit | `build_review_tasks` 未改语义 | 通过 | `tests/test_review_task_builder.py` |
