@@ -179,16 +179,67 @@ def _field_refine_use_chunks() -> bool:
     )
 
 
-def _chunk_text_for_field_refine(text: str, chunk_size: int, max_chunks: int) -> list[str]:
-    if not text:
-        return []
-    if len(text) <= chunk_size:
-        return [text]
+def _field_refine_chunk_soft_break() -> bool:
+    return str(os.getenv("FIELD_REFINE_CHUNK_SOFT_BREAK", "true") or "true").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+
+
+def _field_refine_chunk_break_window(chunk_size: int) -> int:
+    """Look back this many chars from the hard cut for a newline (paragraph-friendly split)."""
+    raw = os.getenv("FIELD_REFINE_CHUNK_BREAK_WINDOW", "") or ""
+    if raw.strip():
+        try:
+            return max(32, min(int(raw), chunk_size))
+        except ValueError:
+            pass
+    return max(120, min(chunk_size // 5, 2000))
+
+
+def _chunk_text_hard(text: str, chunk_size: int, max_chunks: int) -> list[str]:
     out: list[str] = []
     for i in range(0, len(text), chunk_size):
         if len(out) >= max_chunks:
             break
         out.append(text[i : i + chunk_size])
+    return out
+
+
+def _chunk_text_for_field_refine(text: str, chunk_size: int, max_chunks: int) -> list[str]:
+    """
+    Split contract text for field-refine LLM calls.
+    Default: soft break — within a lookback window before each hard limit, cut at the last newline
+    so chunks align with line boundaries when possible (FIELD_REFINE_CHUNK_SOFT_BREAK=false for fixed stride).
+    """
+    if not text:
+        return []
+    if len(text) <= chunk_size:
+        return [text]
+    if not _field_refine_chunk_soft_break():
+        return _chunk_text_hard(text, chunk_size, max_chunks)
+
+    window = _field_refine_chunk_break_window(chunk_size)
+    min_piece = max(1, chunk_size // 8)
+    out: list[str] = []
+    pos = 0
+    while pos < len(text) and len(out) < max_chunks:
+        remain = len(text) - pos
+        if remain <= chunk_size:
+            out.append(text[pos:])
+            break
+        end = pos + chunk_size
+        search_start = max(pos, end - window)
+        cut = text.rfind("\n", search_start, end)
+        if cut >= pos and (cut - pos + 1) >= min_piece:
+            next_pos = cut + 1
+            out.append(text[pos:next_pos])
+            pos = next_pos
+            continue
+        out.append(text[pos:end])
+        pos = end
     return out
 
 
@@ -414,6 +465,7 @@ def run_llm_field_extraction(contract_text: str, field_names: List[str]) -> tupl
     LLM_MODE=real: OpenAI-compatible chat/completions; long text is split into chunks
     (FIELD_REFINE_CHUNK_SIZE, default 8000) unless FIELD_REFINE_USE_CHUNKS=false.
     FIELD_REFINE_CHUNK_MAX_WORKERS>1 runs chunk calls in parallel; results merge in chunk order.
+    FIELD_REFINE_CHUNK_SOFT_BREAK (default true) prefers cutting at newlines near chunk boundaries.
     """
     warnings: list[str] = []
     mode = str(os.getenv("LLM_MODE", "stub")).strip().lower()

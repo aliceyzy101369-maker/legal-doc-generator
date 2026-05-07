@@ -13,17 +13,33 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from contract_review_api.services import llm_engine
 
 
-def test_chunk_text_splits_by_size() -> None:
+def test_chunk_text_splits_by_size(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FIELD_REFINE_CHUNK_SOFT_BREAK", "false")
     s = "abcdefghij"
     parts = llm_engine._chunk_text_for_field_refine(s, 3, 10)
     assert parts == ["abc", "def", "ghi", "j"]
 
 
-def test_chunk_text_respects_max_chunks() -> None:
+def test_chunk_text_respects_max_chunks(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FIELD_REFINE_CHUNK_SOFT_BREAK", "false")
     s = "x" * 10
     parts = llm_engine._chunk_text_for_field_refine(s, 2, 3)
     assert parts == ["xx", "xx", "xx"]
     assert len("".join(parts)) == 6
+
+
+def test_chunk_soft_break_prefers_newline_in_window() -> None:
+    t = ("a" * 15) + "\n" + ("b" * 40)
+    parts = llm_engine._chunk_text_for_field_refine(t, 20, 10)
+    assert parts[0] == ("a" * 15) + "\n"
+    assert "".join(parts) == t
+
+
+def test_chunk_soft_break_disabled_equals_hard_stride(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FIELD_REFINE_CHUNK_SOFT_BREAK", "false")
+    t = ("a" * 15) + "\n" + ("b" * 10)
+    parts = llm_engine._chunk_text_for_field_refine(t, 12, 10)
+    assert parts == [t[i : i + 12] for i in range(0, len(t), 12)]
 
 
 def test_merge_llm_field_map_parts_concat_values() -> None:
