@@ -1,7 +1,7 @@
 # Dify 工作流 vs 本仓库实现 — 差距分析
 
 > 标注规则（按补充约束）：**仅主链 `pipeline.py` 实际调用的能力可标 ✅**；函数存在但未接入主链标 **⚠️**；未实现标 **❌**。  
-> 本文基于 `docs/workflow_full_backup.md`、`docs/workflow_mapping.md` 与当前代码对照整理（**第六阶段已更新**）。
+> 本文基于 `docs/workflow_full_backup.md`、`docs/workflow_mapping.md` 与当前代码对照整理（**第十阶段已更新**）。
 
 ## 总览
 
@@ -13,7 +13,7 @@
 | Dify 行级 markdown | `services/markdown_line_parser.py` + `text_processing.build_paragraphs` | ⚠️ | `pid##category##text` 解析；**段落构建**仅保留 `category` 为 **number / nuber**（大小写不敏感）的行，对齐 Dify A/B 分支过滤词 |
 | 构建字段取值来源库（src_1..4） | `services/source_library.py` + `core/pipeline.py` | ✅ | `build_source_library` 固定 4 项；`assemble_source_inputs` 从主文/附件路径组装；**精提 LLM** 优先用 `format_source_library_for_llm`；无独立持久化 JSON 产物 |
 | 获取审查规则集 / 展开 rules | `services/ruleset_loader.py` | ✅ | 内置 + 文件 ruleset |
-| 构建待审对象字段库 | `services/review_task_builder.py`（部分） | ⚠️ | 仍无 Dify 同名中间 JSON；逻辑在任务构建中体现 |
+| 构建待审对象字段库 | `services/pending_field_library.py` + `core/pipeline.py` | ✅ | `build_pending_object_field_library` 按工作流 4.4 过滤 `target_fields`（去 `src==0` / `mode==0`）、按 `name` 去重；**dry-run** `summary.source_library` + `pending_object_field_library`；正式 **`summary.pending_object_field_library`** + **`source_library_meta`**（仅长度，避免重复超大正文） |
 | 粗提 / 精提双链路 | `services/field_extraction.py` + `pipeline.py` + `llm_engine.run_llm_field_extraction` | ⚠️ | **粗提**=正则；**默认** `FIELD_REFINE_MODE=regex` = 合流 + 规则占位；**llm** = 来源库/全文 LLM 抽取，与粗提 **\\n 拼接**；`LLM_MODE=real` 下多段合并，**换行软切分**（可关）+ 可选 **并行**；**未**复刻 Dify **标题/空行段落级**切片 |
 | 粗提/精提切片（limit=8000） | `services/text_processing.py` + `core/pipeline.py` | ✅ | `chunk_tasks` 在任务构建之后 |
 | 构建审查任务队列 | `services/review_task_builder.py` + `pipeline.py` | ✅ | 回填、`empty_policy`、anchor、limit |
@@ -39,4 +39,4 @@
 | 高 | 精提多段 LLM | 超长合同按 Dify 迭代切片并发抽取，避免单次截断 |
 | 中 | 审查聚合与 Dify 画布 | 多分支合并规则、errorCollection 与画布节点一一对照 |
 | 中 | Remote HTTP | 生产级鉴权与非 GET |
-| 低 | 待审对象字段库 JSON | 导出与 Dify 同结构的中间产物便于对账 |
+| 低 | 工作流 §5.1 任务拆分 | 独立导出 `mode_1` / `mode_23` 任务列表 JSON（与待审字段库 + 来源库组合生成） |

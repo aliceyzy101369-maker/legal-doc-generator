@@ -99,3 +99,7 @@ def test_review_dry_run_endpoint():
     assert "summary" in body
     assert "review_tasks" in body
     assert "rules_loaded_count" in body["summary"]
+    s = body["summary"]
+    assert "pending_object_field_library" in s and len(s["pending_object_field_library"]) >= 1
+    assert "source_library" in s and len(s["source_library"]) == 4
+    assert "source_library_meta" in s and len(s["source_library_meta"]) == 4

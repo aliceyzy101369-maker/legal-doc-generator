@@ -31,6 +31,7 @@ from contract_review_api.services.output_transform import build_final_output
 from contract_review_api.services.report_render import build_summary, render_markdown
 from contract_review_api.services.review_task_builder import build_review_tasks
 from contract_review_api.services.ruleset_loader import load_review_rules
+from contract_review_api.services.pending_field_library import build_pending_object_field_library
 from contract_review_api.services.result_merge import merge_issues, partition_issues_for_final_output
 from contract_review_api.services.source_library import assemble_source_inputs, build_source_library
 from contract_review_api.services.rule_engine import run_rule_review
@@ -90,6 +91,7 @@ def _prepare_contract_state(payload: ReviewCreateRequest, review_id: str, trace_
         raise RuntimeError("No readable contract content is found from input sources.")
 
     review_rules = load_review_rules(payload.ruleset_ids)
+    pending_object_field_library = build_pending_object_field_library(review_rules)
     coarse = extract_field_candidates_coarse(paragraphs)
     merged_fields, refine_warnings = refine_field_candidates(
         coarse,
@@ -113,7 +115,22 @@ def _prepare_contract_state(payload: ReviewCreateRequest, review_id: str, trace_
         "markdown_line_count": markdown_line_count,
         "attachment_count": attachment_count,
         "source_library": source_library,
+        "pending_object_field_library": pending_object_field_library,
     }
+
+
+def _source_library_meta(source_library: list[dict]) -> list[dict]:
+    out: list[dict] = []
+    for item in source_library or []:
+        if not isinstance(item, dict):
+            continue
+        raw_src = item.get("src", 0)
+        try:
+            src_n = int(raw_src)
+        except (TypeError, ValueError):
+            src_n = 0
+        out.append({"src": src_n, "content_len": len(str(item.get("content", "") or ""))})
+    return out
 
 
 def run_review_pipeline(payload: ReviewCreateRequest) -> ReviewResponse:
@@ -240,6 +257,8 @@ def run_review_pipeline(payload: ReviewCreateRequest) -> ReviewResponse:
     summary["review_max_workers"] = _review_task_max_workers()
     summary["aggregation_success_count"] = len(good_for_final)
     summary["aggregation_error_count"] = len(degraded_for_agg)
+    summary["pending_object_field_library"] = st.get("pending_object_field_library") or []
+    summary["source_library_meta"] = _source_library_meta(st.get("source_library") or [])
 
     logger.info(
         "pipeline done trace_id=%s review_id=%s elapsed_ms=%s issues=%s comments=%s extracted=%s llm_calls=%s degraded=%s",
@@ -323,6 +342,10 @@ def run_review_dry_run(payload: ReviewCreateRequest) -> ReviewDryRunResponse:
             {"pid": r.pid, "category": r.category, "text_len": len(r.text)}
             for r in parse_markdown_lines(str(st.get("base_text") or ""))
         ][:40]
+
+    dry_summary["pending_object_field_library"] = st.get("pending_object_field_library") or []
+    dry_summary["source_library"] = st.get("source_library") or []
+    dry_summary["source_library_meta"] = _source_library_meta(st.get("source_library") or [])
 
     return ReviewDryRunResponse(
         summary=dry_summary,

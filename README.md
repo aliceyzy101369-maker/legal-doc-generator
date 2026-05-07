@@ -60,6 +60,7 @@ cp .env.example .env
 - `CONTRACT_DOCUMENT_PROVIDER`：`stub`（默认，内存 id→文本）、`http`（按环境变量 HTTP 拉取）、`none`（禁止按 id 取数）
 - `CONTRACT_DOCUMENT_HTTP_*`（含可选 `CONTRACT_DOCUMENT_HTTP_JSON_PATH`、`CONTRACT_DOCUMENT_HTTP_HEADERS`）、`REVIEW_TASK_MAX_WORKERS`：见 `.env.example`
 - `FIELD_REFINE_MODE`、`LLM_FIELD_REFINE`、`FIELD_REFINE_TEXT_LIMIT`、`FIELD_REFINE_LLM_TIMEOUT`、`FIELD_REFINE_CHUNK_SIZE`、`FIELD_REFINE_MAX_CHUNKS`、`FIELD_REFINE_USE_CHUNKS`、`FIELD_REFINE_CHUNK_MAX_WORKERS`、`FIELD_REFINE_CHUNK_SOFT_BREAK`、`FIELD_REFINE_CHUNK_BREAK_WINDOW`：精提 LLM 路径（第六至九阶段）
+- **工作流可观测**：`summary.pending_object_field_library`（Dify §4.4）、`summary.source_library_meta`；dry-run 另含完整 `summary.source_library`（第十阶段）
 
 请求体可选字段 `contract_type`：若提供，将**强制覆盖**合并后的 `contract_type` 字段（对齐 Dify「入参合同类型」语义）。
 

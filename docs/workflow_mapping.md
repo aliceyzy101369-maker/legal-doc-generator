@@ -9,6 +9,7 @@ This document maps the original workflow-node style execution into code modules 
 | 调取入参内容 | `services.input_ingest` | Normalize request payload and source metadata |
 | 获取合同文本 / 获取主合同和附件markdown | `services.text_processing` | Parse file/text, merge main + attachment content |
 | 构建字段提取任务 / 迭代器 | `services.field_extraction` | Build field extraction tasks and candidate values |
+| 构建待审对象字段库 | `services.pending_field_library` + `core.pipeline` | Export deduped `target_fields` (excl. src=0 / mode=0) into `summary.pending_object_field_library` |
 | 粗提/精提 + 判断 | `services.field_extraction` + `services.rule_engine` | Regex and heuristic extraction with deterministic checks |
 | LLM大模型提取字段值 | `services.llm_engine` | Semantic extraction and legal-risk issue generation |
 | json结构检查 / 输出数据格式校验 | `api.schemas` + `services.report_render` | Enforce strict response schema |
