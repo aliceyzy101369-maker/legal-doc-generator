@@ -12,7 +12,7 @@
 | 粗提 | mode_1 多轮/切片 | `extract_field_candidates_coarse`：全量正则命中 | 部分 | 对照合同样本；`summary.coarse_field_count` |
 | 取值来源库 | src=1..4 | `build_source_library` + `assemble_source_inputs`；精提 LLM 用 `format_source_library_for_llm`；dry-run 暴露完整 `source_library` | 部分 | `tests/test_source_library.py` |
 | 待审对象字段库 | §4.4 过滤 target_fields | `build_pending_object_field_library`；`summary` + dry-run | 部分 | `tests/test_pending_field_library.py` |
-| 字段提取任务 §5.1 | mode_1 / mode_23 列表 | dry-run：`field_extraction_tasks` + `source_preview`；review：`field_extraction_task_counts` | 部分 | `tests/test_field_extraction_tasks.py`；预览非默认全文 |
+| 字段提取任务 §5.1 | mode_1 / mode_23 列表 | dry-run：`field_extraction_tasks` + `source_preview`；review：默认 `field_extraction_task_counts`；**可选** `include_field_extraction_tasks` 或 `FIELD_EXTRACTION_INCLUDE_IN_REVIEW` 输出完整任务列表 | 部分 | `tests/test_field_extraction_tasks.py`、`test_pipeline.test_review_full_run_can_include_field_extraction_tasks` |
 | 精提 | mode_23 补全规范化 | 默认 `regex`：合流 + 占位；`llm`：分段 LLM，换行软切分 + 可选并行，合并后与粗提 **\\n 拼接** | 部分 | `test_field_refine_llm.py`、`test_field_refine_chunking.py`；未做标题级切片 |
 | 规则加载 | ruleset API | `ruleset_loader` 内置 + JSON 文件 | 通过 | `tests/test_ruleset_loader.py` |
 | 审查任务构建 | 回填、empty_policy、anchor、limit | `build_review_tasks` 未改语义 | 通过 | `tests/test_review_task_builder.py` |

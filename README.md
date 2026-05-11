@@ -61,9 +61,10 @@ cp .env.example .env
 - `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL`：真实模型调用
 - `SSL_CERT_FILE`：指向 `certifi` 的 `cacert.pem`（macOS 上常见 SSL 修复）
 - `CONTRACT_DOCUMENT_PROVIDER`：`stub`（默认，内存 id→文本）、`http`（按环境变量 HTTP 拉取）、`none`（禁止按 id 取数）
-- `CONTRACT_DOCUMENT_HTTP_*`（含可选 `CONTRACT_DOCUMENT_HTTP_JSON_PATH`、`CONTRACT_DOCUMENT_HTTP_HEADERS`）、`REVIEW_TASK_MAX_WORKERS`：见 `.env.example`
+- `CONTRACT_DOCUMENT_HTTP_*`（`METHOD`=`GET`|`POST`、`BODY_TEMPLATE` 含 `{doc_id}`/`{document_id}` 占位符、可选 `JSON_PATH`、`HEADERS`）、`REVIEW_TASK_MAX_WORKERS`：见 `.env.example`
 - `FIELD_REFINE_MODE`、`LLM_FIELD_REFINE`、`FIELD_REFINE_TEXT_LIMIT`、`FIELD_REFINE_LLM_TIMEOUT`、`FIELD_REFINE_CHUNK_SIZE`、`FIELD_REFINE_MAX_CHUNKS`、`FIELD_REFINE_USE_CHUNKS`、`FIELD_REFINE_CHUNK_MAX_WORKERS`、`FIELD_REFINE_CHUNK_SOFT_BREAK`、`FIELD_REFINE_CHUNK_BREAK_WINDOW`：精提 LLM 路径（第六至九阶段）
-- **工作流可观测**：`summary.pending_object_field_library`（§4.4）、`summary.source_library_meta`、**`summary.field_extraction_task_counts`**（§5.1）；**dry-run** 含完整 `source_library`、**`field_extraction_tasks`**（每行带 `source_preview` 等，`FIELD_EXTRACTION_SOURCE_PREVIEW_CHARS` 可调，第十二阶段）
+- **工作流可观测**：`summary.pending_object_field_library`（§4.4）、`summary.source_library_meta`、**`summary.field_extraction_task_counts`**（§5.1）；**dry-run** 含完整 `source_library`、**`field_extraction_tasks`**；**正式 `/reviews`** 可通过请求体 **`include_field_extraction_tasks`** 或环境变量 **`FIELD_EXTRACTION_INCLUDE_IN_REVIEW`** 附带同款任务列表（每行 `source_preview` 等，`FIELD_EXTRACTION_SOURCE_PREVIEW_CHARS` 可调）
+- **Markdown 段落类目**：默认仅 `number`/`nuber` 进入段落；**`MARKDOWN_PARAGRAPH_CATEGORY_ALLOWLIST`** 可扩展（逗号分隔），对齐历史 Dify 类目
 
 请求体可选字段 `contract_type`：若提供，将**强制覆盖**合并后的 `contract_type` 字段（对齐 Dify「入参合同类型」语义）。
 

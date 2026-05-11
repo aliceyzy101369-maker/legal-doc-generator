@@ -144,6 +144,48 @@ def test_http_provider_from_env_json_path_and_headers(monkeypatch: pytest.Monkey
     assert sent.get("x-custom") == "yes"
 
 
+def test_http_provider_post_json_body() -> None:
+    provider = HttpDocumentProvider(
+        base_url="https://example.com",
+        path_template="/api/docs/{doc_id}",
+        http_method="POST",
+        body_template='{"fileId":"{doc_id}"}',
+    )
+    with patch(
+        "contract_review_api.services.document_provider.urllib.request.urlopen",
+        return_value=_mock_urlopen_response(b'{"text":"POST ok"}'),
+    ) as m_urlopen:
+        out = provider.fetch_text("doc-99")
+    assert out == "POST ok"
+    req = m_urlopen.call_args[0][0]
+    assert req.get_method() == "POST"
+    assert b'"fileId":"doc-99"' in (req.data or b"")
+
+
+def test_http_provider_post_default_body_json() -> None:
+    provider = HttpDocumentProvider(
+        base_url="https://x.test",
+        path_template="/v/{doc_id}",
+        http_method="POST",
+    )
+    with patch(
+        "contract_review_api.services.document_provider.urllib.request.urlopen",
+        return_value=_mock_urlopen_response(b'plain'),
+    ) as m_urlopen:
+        provider.fetch_text("id7")
+    req = m_urlopen.call_args[0][0]
+    assert req.data == b'{"doc_id": "id7"}'
+
+
+def test_http_provider_invalid_http_method() -> None:
+    with pytest.raises(DocumentProviderConfigError, match="GET or POST"):
+        HttpDocumentProvider(
+            base_url="https://x.test",
+            path_template="/d/{doc_id}",
+            http_method="PUT",
+        )
+
+
 def test_http_provider_invalid_headers_json(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CONTRACT_DOCUMENT_HTTP_BASE_URL", "https://api.example.com")
     monkeypatch.setenv("CONTRACT_DOCUMENT_HTTP_HEADERS", "not-json")

@@ -130,6 +130,8 @@ class HttpDocumentProvider:
         bearer_token: str | None = None,
         json_text_path: str | None = None,
         extra_headers: dict[str, str] | None = None,
+        http_method: str = "GET",
+        body_template: str | None = None,
     ) -> None:
         self._base = str(base_url or "").strip().rstrip("/")
         self._path_template = str(path_template or "").strip()
@@ -138,6 +140,12 @@ class HttpDocumentProvider:
         jpath = str(json_text_path or "").strip()
         self._json_text_path = jpath or None
         self._extra_headers = dict(extra_headers or {})
+        m = str(http_method or "GET").strip().upper()
+        if m not in ("GET", "POST"):
+            raise DocumentProviderConfigError("http_method must be GET or POST.")
+        self._http_method = m
+        bt = str(body_template or "").strip()
+        self._body_template = bt or None
         if not self._base:
             raise DocumentProviderConfigError("CONTRACT_DOCUMENT_HTTP_BASE_URL is required for http provider.")
         if "{doc_id}" not in self._path_template and "{document_id}" not in self._path_template:
@@ -167,6 +175,8 @@ class HttpDocumentProvider:
             if not isinstance(parsed, dict):
                 raise DocumentProviderConfigError("CONTRACT_DOCUMENT_HTTP_HEADERS must be a JSON object.")
             extra_headers = {str(k): str(v) for k, v in parsed.items()}
+        http_method = str(os.getenv("CONTRACT_DOCUMENT_HTTP_METHOD", "GET") or "GET").strip()
+        body_template = str(os.getenv("CONTRACT_DOCUMENT_HTTP_BODY_TEMPLATE", "") or "").strip() or None
         return cls(
             base_url=base,
             path_template=path,
@@ -174,6 +184,8 @@ class HttpDocumentProvider:
             bearer_token=bearer,
             json_text_path=json_text_path,
             extra_headers=extra_headers,
+            http_method=http_method,
+            body_template=body_template,
         )
 
     def _build_url(self, doc_id: str) -> str:
@@ -185,13 +197,29 @@ class HttpDocumentProvider:
             rel = "/" + rel
         return f"{self._base}{rel}"
 
+    def _post_body_bytes(self, doc_id: str) -> bytes:
+        safe = str(doc_id or "").strip()
+        if self._body_template:
+            # Do not use str.format (JSON braces conflict); only substitute ids.
+            body_str = (
+                self._body_template.replace("{doc_id}", safe).replace("{document_id}", safe)
+            )
+        else:
+            body_str = json.dumps({"doc_id": safe})
+        return body_str.encode("utf-8")
+
     def fetch_text(self, doc_id: str) -> str:
         url = self._build_url(doc_id)
         hdrs: dict[str, str] = {"Accept": "application/json, text/plain, */*"}
         if self._bearer:
             hdrs["Authorization"] = f"Bearer {self._bearer}"
         hdrs.update(self._extra_headers)
-        req = urllib.request.Request(url=url, method="GET", headers=hdrs)
+        method = self._http_method
+        data: bytes | None = None
+        if method == "POST":
+            hdrs.setdefault("Content-Type", "application/json; charset=utf-8")
+            data = self._post_body_bytes(doc_id)
+        req = urllib.request.Request(url=url, method=method, headers=hdrs, data=data)
 
         ctx = _ssl_context_for_documents()
         try:

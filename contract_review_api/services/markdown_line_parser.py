@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass
 from typing import Iterable
@@ -13,8 +14,24 @@ _LINE_RE = re.compile(r"^(\d+)##([^#]*?)##(.*)$")
 _NUMBERISH_CATEGORIES = frozenset({"number", "nuber"})
 
 
+def _configured_extra_paragraph_categories() -> frozenset[str]:
+    raw = os.getenv("MARKDOWN_PARAGRAPH_CATEGORY_ALLOWLIST", "") or ""
+    return frozenset(p.strip().lower() for p in raw.split(",") if p.strip())
+
+
 def is_numberish_line_category(category: str) -> bool:
     return str(category or "").lower().strip() in _NUMBERISH_CATEGORIES
+
+
+def is_paragraph_eligible_category(category: str) -> bool:
+    """
+    Paragraph extraction uses Dify-style filtering: default only number/nuber.
+    Optional comma-separated MARKDOWN_PARAGRAPH_CATEGORY_ALLOWLIST extends this (case-insensitive category names).
+    """
+    if is_numberish_line_category(category):
+        return True
+    cat = str(category or "").strip().lower()
+    return bool(cat) and cat in _configured_extra_paragraph_categories()
 
 
 @dataclass(frozen=True)
@@ -77,7 +94,7 @@ def is_dify_markdown_line_document(text: str) -> bool:
 def paragraphs_from_markdown_lines(review_id: str, text: str) -> list[Paragraph]:
     """Build Paragraph objects using pid as paragraph_no and body as extraction text."""
     records = parse_markdown_lines(text)
-    filtered = [r for r in records if is_numberish_line_category(r.category)]
+    filtered = [r for r in records if is_paragraph_eligible_category(r.category)]
     return [
         Paragraph(
             review_id=review_id,

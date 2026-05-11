@@ -11,6 +11,21 @@ from contract_review_api.main import app
 client = TestClient(app)
 
 
+def test_review_full_run_can_include_field_extraction_tasks():
+    payload = {
+        "text": "甲方：北京甲公司\n\n乙方：上海乙公司\n\n项目名称：货物采购\n\n合同类型：买卖合同\n\n自2026年1月1日至2026年12月31日",
+        "ruleset_ids": ["demo"],
+        "include_field_extraction_tasks": True,
+    }
+    resp = client.post("/reviews", json=payload)
+    assert resp.status_code == 200
+    s = resp.json()["summary"]
+    assert "field_extraction_tasks" in s
+    assert set(s["field_extraction_tasks"].keys()) == {"mode_1", "mode_23"}
+    m1 = s["field_extraction_tasks"]["mode_1"]
+    assert m1 and "source_preview" in m1[0]
+
+
 def test_review_from_text():
     payload = {
         "text": "甲方：北京甲公司\n\n乙方：上海乙公司\n\n项目名称：货物采购\n\n合同类型：买卖合同\n\n自2026年1月1日至2026年12月31日",

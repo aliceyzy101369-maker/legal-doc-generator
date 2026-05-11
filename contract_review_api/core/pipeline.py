@@ -61,6 +61,16 @@ def _trace_id_for(payload: ReviewCreateRequest) -> str:
     return tid or str(uuid.uuid4())
 
 
+def _should_include_field_extraction_tasks(payload: ReviewCreateRequest) -> bool:
+    """Dify §5.1 observability in full review: opt-in via request or FIELD_EXTRACTION_INCLUDE_IN_REVIEW."""
+    if payload.include_field_extraction_tasks is True:
+        return True
+    if payload.include_field_extraction_tasks is False:
+        return False
+    raw = (os.getenv("FIELD_EXTRACTION_INCLUDE_IN_REVIEW") or "").strip().lower()
+    return raw in ("1", "true", "yes", "on")
+
+
 def _prepare_contract_state(payload: ReviewCreateRequest, review_id: str, trace_id: str) -> dict:
     provider = get_document_provider()
     base_text, remote_atts, local_paths, gather_warnings = gather_resolved_contract_bundle(payload, provider)
@@ -283,6 +293,12 @@ def run_review_pipeline(payload: ReviewCreateRequest) -> ReviewResponse:
         "src1_contract_subject": len(str(payload.contract_subject or "").strip()),
         "src4_business_slot": len(payload.resolved_src4_business_slot()),
     }
+    if _should_include_field_extraction_tasks(payload):
+        raw_tasks = st.get("field_extraction_tasks") or {"mode_1": [], "mode_23": []}
+        summary["field_extraction_tasks"] = enrich_field_extraction_tasks_with_sources(
+            raw_tasks,
+            st.get("source_library") or [],
+        )
 
     logger.info(
         "pipeline done trace_id=%s review_id=%s elapsed_ms=%s issues=%s comments=%s extracted=%s llm_calls=%s degraded=%s",

@@ -94,6 +94,10 @@ async def create_review_upload(
     contract_subject: str | None = Form(None),
     business_info: str | None = Form(None),
     enterprise_list: str | None = Form(None),
+    include_field_extraction_tasks: bool | None = Form(
+        None,
+        description="If true, summary includes field_extraction_tasks (§5.1) like dry-run; null uses env default",
+    ),
 ) -> ReviewResponse:
     """
     Browser-friendly multipart ingest: main file and/or pasted text and/or remote main id.
@@ -152,6 +156,7 @@ async def create_review_upload(
                 contract_subject=contract_subject,
                 business_info=business_info,
                 enterprise_list=enterprise_list,
+                include_field_extraction_tasks=include_field_extraction_tasks,
             )
             result = run_review_pipeline(payload)
     except InputIngestError as exc:

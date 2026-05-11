@@ -31,6 +31,14 @@ class ReviewCreateRequest(BaseModel):
         description="Optional JSON string or plain text (企业列表等)，与 business_info 一并写入 src=4",
     )
 
+    include_field_extraction_tasks: Optional[bool] = Field(
+        default=None,
+        description=(
+            "When true, summary includes §5.1 field_extraction_tasks with source previews (same shape as dry-run). "
+            "When false, omit even if FIELD_EXTRACTION_INCLUDE_IN_REVIEW is set. When null, use env default."
+        ),
+    )
+
     # Dify-style remote ids (resolved via DocumentProvider; default stub in dev/tests)
     contract_id: Optional[str] = None
     main_contract_id: Optional[str] = None
