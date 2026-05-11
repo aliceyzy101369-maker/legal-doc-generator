@@ -177,6 +177,25 @@ def test_http_provider_post_default_body_json() -> None:
     assert req.data == b'{"doc_id": "id7"}'
 
 
+def test_http_provider_post_includes_signature_when_secret(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CONTRACT_DOCUMENT_HTTP_SIGN_SECRET", "s3cr3t")
+    provider = HttpDocumentProvider(
+        base_url="https://example.com",
+        path_template="/api/{doc_id}",
+        http_method="POST",
+        body_template='{"id":"{doc_id}"}',
+    )
+    with patch(
+        "contract_review_api.services.document_provider.urllib.request.urlopen",
+        return_value=_mock_urlopen_response(b'{"text":"ok"}'),
+    ) as m_urlopen:
+        provider.fetch_text("abc")
+    req = m_urlopen.call_args[0][0]
+    sent = {k.lower(): v for k, v in req.header_items()}
+    assert "x-document-signature" in sent
+    assert len(sent["x-document-signature"]) == 64
+
+
 def test_http_provider_invalid_http_method() -> None:
     with pytest.raises(DocumentProviderConfigError, match="GET or POST"):
         HttpDocumentProvider(

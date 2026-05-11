@@ -63,6 +63,23 @@ def merge_fields(
     return out
 
 
+def issues_for_error_collection(issues: List[ReviewIssue]) -> list[dict]:
+    """Structured mirror of Dify-style errorCollection / degraded branch for summary observability."""
+    out: list[dict] = []
+    for i in issues:
+        out.append(
+            {
+                "title": i.title,
+                "comment": i.comment,
+                "degree": i.degree,
+                "category": i.category,
+                "change_type": i.change_type,
+                "evidence": list(i.evidence),
+            }
+        )
+    return out
+
+
 def merge_issues(rule_issues: List[ReviewIssue], llm_issues: List[ReviewIssue]) -> List[ReviewIssue]:
     out: Dict[str, ReviewIssue] = {}
     for issue in [*rule_issues, *llm_issues]:

@@ -15,6 +15,7 @@
 | 十–十二 | `DEVELOPMENT_PLAN_PHASE10.md` … `PHASE12.md` | 待审字段库、§5.1 任务拆分、来源预览 |
 | 十三 | `DEVELOPMENT_PLAN_PHASE13.md` | 工作流入参 src_1/src_4、预算、报告 Markdown、主文档汇总 |
 | 十四 | `DEVELOPMENT_PLAN_PHASE14.md` | 1:1 补强：正式审查可选 §5.1 任务列表、Markdown 类目白名单、HTTP POST 拉取 |
+| 十五 | `DEVELOPMENT_PLAN_PHASE15.md` | 主链 closure：精提标题级分块、error_collection、报告与 HTTP 签名 |
 
 ## 运行与验证
 

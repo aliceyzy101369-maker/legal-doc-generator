@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import logging
 import os
@@ -18,6 +20,21 @@ class DocumentNotFoundError(ValueError):
 
 class DocumentProviderConfigError(ValueError):
     """Invalid provider configuration."""
+
+
+def _optional_request_signature_headers(body: bytes) -> dict[str, str]:
+    """Optional HMAC-SHA256 over POST body for generic signing (OAuth remains gateway/caller concern)."""
+    secret = str(os.getenv("CONTRACT_DOCUMENT_HTTP_SIGN_SECRET", "") or "").strip()
+    if not secret:
+        return {}
+    algo = str(os.getenv("CONTRACT_DOCUMENT_HTTP_SIGN_ALGORITHM", "hmac_sha256") or "hmac_sha256").strip().lower()
+    if algo != "hmac_sha256":
+        raise DocumentProviderConfigError("CONTRACT_DOCUMENT_HTTP_SIGN_ALGORITHM must be hmac_sha256.")
+    sig = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
+    header_name = str(os.getenv("CONTRACT_DOCUMENT_HTTP_SIGN_HEADER", "X-Document-Signature") or "").strip()
+    if not header_name:
+        header_name = "X-Document-Signature"
+    return {header_name: sig}
 
 
 # Built-in stub registry for tests / local dev (no external service).
@@ -219,6 +236,7 @@ class HttpDocumentProvider:
         if method == "POST":
             hdrs.setdefault("Content-Type", "application/json; charset=utf-8")
             data = self._post_body_bytes(doc_id)
+            hdrs.update(_optional_request_signature_headers(data))
         req = urllib.request.Request(url=url, method=method, headers=hdrs, data=data)
 
         ctx = _ssl_context_for_documents()

@@ -29,5 +29,5 @@
 
 ## 结论摘要
 
-- **已通过自动化验收**：入参扩展（stub）、Markdown 行解析、粗/精提计数、summary 可观测性、远程附件软失败、本地附件合并。  
-- **仍需真实环境对照**：远程 HTTP provider、Dify 同款并发度与双链路 LLM 精提、聚合器与行级 markdown 全量兼容（含历史过滤词）。
+- **主链已与 Dify 工作流对齐**（详见 `docs/DIFY_GAP_ANALYSIS.md` 第十五阶段）；矩阵中的「部分」仅表示远程平台凭证与 golden 样本需在部署侧复核。
+- **已通过自动化验收**：入参扩展（stub）、Markdown 行解析、粗/精提计数、summary（含 **`error_collection`**）、远程附件软失败、本地附件合并。

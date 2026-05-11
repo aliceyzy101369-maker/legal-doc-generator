@@ -4,6 +4,7 @@ import concurrent.futures
 import json
 import logging
 import os
+import re
 import socket
 import ssl
 import urllib.error
@@ -199,28 +200,47 @@ def _field_refine_chunk_break_window(chunk_size: int) -> int:
     return max(120, min(chunk_size // 5, 2000))
 
 
-def _chunk_text_hard(text: str, chunk_size: int, max_chunks: int) -> list[str]:
-    out: list[str] = []
-    for i in range(0, len(text), chunk_size):
-        if len(out) >= max_chunks:
-            break
-        out.append(text[i : i + chunk_size])
-    return out
+def _field_refine_chunk_strategy() -> str:
+    """
+    FIELD_REFINE_CHUNK_STRATEGY:
+    - soft_newline (default): newline-aware windows (FIELD_REFINE_CHUNK_SOFT_BREAK=false -> hard fixed stride)
+    - hard: fixed-size slices only
+    - markdown_heading: split at ATX headings (# .. ######) then pack into chunk_size (Dify-friendly sections)
+    """
+    raw = (os.getenv("FIELD_REFINE_CHUNK_STRATEGY", "") or "").strip().lower()
+    if raw in ("hard", "fixed"):
+        return "hard"
+    if raw in ("markdown_heading", "heading", "markdown"):
+        return "markdown_heading"
+    return "soft_newline"
 
 
-def _chunk_text_for_field_refine(text: str, chunk_size: int, max_chunks: int) -> list[str]:
-    """
-    Split contract text for field-refine LLM calls.
-    Default: soft break — within a lookback window before each hard limit, cut at the last newline
-    so chunks align with line boundaries when possible (FIELD_REFINE_CHUNK_SOFT_BREAK=false for fixed stride).
-    """
+_HEADING_LINE_ATX = re.compile(r"^#{1,6}\s")
+
+
+def _split_segments_at_md_headings(text: str) -> list[str]:
+    lines = text.splitlines(keepends=True)
+    if not lines:
+        return []
+    segments: list[str] = []
+    buf: list[str] = []
+    for line in lines:
+        if _HEADING_LINE_ATX.match(line) and buf:
+            segments.append("".join(buf))
+            buf = [line]
+        else:
+            buf.append(line)
+    if buf:
+        segments.append("".join(buf))
+    return segments
+
+
+def _chunk_text_soft_newlines(text: str, chunk_size: int, max_chunks: int) -> list[str]:
+    """Soft newline chunking (original FIELD_REFINE_CHUNK_SOFT_BREAK behavior)."""
     if not text:
         return []
     if len(text) <= chunk_size:
         return [text]
-    if not _field_refine_chunk_soft_break():
-        return _chunk_text_hard(text, chunk_size, max_chunks)
-
     window = _field_refine_chunk_break_window(chunk_size)
     min_piece = max(1, chunk_size // 8)
     out: list[str] = []
@@ -241,6 +261,65 @@ def _chunk_text_for_field_refine(text: str, chunk_size: int, max_chunks: int) ->
         out.append(text[pos:end])
         pos = end
     return out
+
+
+def _chunk_text_markdown_heading_pack(text: str, chunk_size: int, max_chunks: int) -> list[str]:
+    """Prefer cuts at markdown ATX headings, then pack; oversized sections use soft newlines."""
+    segments = _split_segments_at_md_headings(text)
+    chunks: list[str] = []
+    buf = ""
+    for seg in segments:
+        if len(chunks) >= max_chunks:
+            break
+        if len(seg) > chunk_size:
+            if buf:
+                chunks.append(buf)
+                buf = ""
+                if len(chunks) >= max_chunks:
+                    break
+            sub_remaining = max_chunks - len(chunks)
+            if sub_remaining <= 0:
+                break
+            sub = _chunk_text_soft_newlines(seg, chunk_size, sub_remaining)
+            chunks.extend(sub)
+            continue
+        if len(buf) + len(seg) <= chunk_size:
+            buf += seg
+        else:
+            if buf:
+                chunks.append(buf)
+            buf = seg
+    if buf and len(chunks) < max_chunks:
+        chunks.append(buf)
+    return chunks[:max_chunks]
+
+
+def _chunk_text_hard(text: str, chunk_size: int, max_chunks: int) -> list[str]:
+    out: list[str] = []
+    for i in range(0, len(text), chunk_size):
+        if len(out) >= max_chunks:
+            break
+        out.append(text[i : i + chunk_size])
+    return out
+
+
+def _chunk_text_for_field_refine(text: str, chunk_size: int, max_chunks: int) -> list[str]:
+    """
+    Split contract text for field-refine LLM calls.
+    FIELD_REFINE_CHUNK_STRATEGY selects algorithm; default soft_newline uses newline windows unless SOFT_BREAK off.
+    """
+    if not text:
+        return []
+    if len(text) <= chunk_size:
+        return [text]
+    strategy = _field_refine_chunk_strategy()
+    if strategy == "hard":
+        return _chunk_text_hard(text, chunk_size, max_chunks)
+    if strategy == "markdown_heading":
+        return _chunk_text_markdown_heading_pack(text, chunk_size, max_chunks)
+    if not _field_refine_chunk_soft_break():
+        return _chunk_text_hard(text, chunk_size, max_chunks)
+    return _chunk_text_soft_newlines(text, chunk_size, max_chunks)
 
 
 def _merge_llm_field_map_parts(
@@ -464,8 +543,9 @@ def run_llm_field_extraction(contract_text: str, field_names: List[str]) -> tupl
     LLM_MODE=stub: no HTTP; returns ({}, []).
     LLM_MODE=real: OpenAI-compatible chat/completions; long text is split into chunks
     (FIELD_REFINE_CHUNK_SIZE, default 8000) unless FIELD_REFINE_USE_CHUNKS=false.
+    FIELD_REFINE_CHUNK_STRATEGY selects soft_newline / hard / markdown_heading splits.
     FIELD_REFINE_CHUNK_MAX_WORKERS>1 runs chunk calls in parallel; results merge in chunk order.
-    FIELD_REFINE_CHUNK_SOFT_BREAK (default true) prefers cutting at newlines near chunk boundaries.
+    FIELD_REFINE_CHUNK_SOFT_BREAK (default true) prefers cutting at newlines near chunk boundaries (soft_newline / default path).
     """
     warnings: list[str] = []
     mode = str(os.getenv("LLM_MODE", "stub")).strip().lower()
@@ -505,6 +585,9 @@ def run_llm_field_extraction(contract_text: str, field_names: List[str]) -> tupl
         )
 
     chunks = _chunk_text_for_field_refine(text, chunk_size, max_chunks)
+    strat = _field_refine_chunk_strategy()
+    if strat != "soft_newline":
+        warnings.append(f"llm_field_refine_chunk_strategy:{strat}")
     if len(chunks) > 1:
         warnings.append(f"llm_field_refine_chunked:{len(chunks)}")
     if len(text) > len("".join(chunks)):

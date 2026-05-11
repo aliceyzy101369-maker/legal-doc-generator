@@ -36,7 +36,7 @@ from contract_review_api.services.field_extraction_tasks import (
     enrich_field_extraction_tasks_with_sources,
 )
 from contract_review_api.services.pending_field_library import build_pending_object_field_library
-from contract_review_api.services.result_merge import merge_issues, partition_issues_for_final_output
+from contract_review_api.services.result_merge import issues_for_error_collection, merge_issues, partition_issues_for_final_output
 from contract_review_api.services.source_library import assemble_source_inputs, build_source_library
 from contract_review_api.services.rule_engine import run_rule_review
 from contract_review_api.services.text_processing import build_paragraphs, chunk_tasks
@@ -282,6 +282,7 @@ def run_review_pipeline(payload: ReviewCreateRequest) -> ReviewResponse:
     summary["review_max_workers"] = _review_task_max_workers()
     summary["aggregation_success_count"] = len(good_for_final)
     summary["aggregation_error_count"] = len(degraded_for_agg)
+    summary["error_collection"] = issues_for_error_collection(degraded_for_agg)
     summary["pending_object_field_library"] = st.get("pending_object_field_library") or []
     summary["source_library_meta"] = _source_library_meta(st.get("source_library") or [])
     fet = st.get("field_extraction_tasks") or {"mode_1": [], "mode_23": []}
@@ -318,6 +319,11 @@ def run_review_pipeline(payload: ReviewCreateRequest) -> ReviewResponse:
         review_id,
         final_comment_count=len(final_output.comment_list),
         extracted_info_count=len(final_output.extracted_info),
+        trace_id=trace_id,
+        elapsed_ms=elapsed_ms,
+        error_collection=summary.get("error_collection") or [],
+        review_task_count=len(review_tasks),
+        chunk_count=chunk_count,
     )
 
     return ReviewResponse(

@@ -1,5 +1,6 @@
 from contract_review_api.core.models import FieldCandidate, ReviewIssue
 from contract_review_api.services.result_merge import (
+    issues_for_error_collection,
     merge_fields,
     merge_issues,
     partition_issues_for_final_output,
@@ -60,3 +61,18 @@ def test_partition_moves_llm_degraded_only():
     g, d = partition_issues_for_final_output([good, bad, bootstrap])
     assert len(g) == 2 and {x.title for x in g} == {"风险", "字段粗提降级提示"}
     assert len(d) == 1 and d[0].title == "模型审查降级提示"
+
+
+def test_issues_for_error_collection_shape():
+    bad = ReviewIssue(title="模型审查降级提示", comment="y", degree="低", category=0, evidence=[3])
+    rows = issues_for_error_collection([bad])
+    assert rows == [
+        {
+            "title": "模型审查降级提示",
+            "comment": "y",
+            "degree": "低",
+            "category": 0,
+            "change_type": None,
+            "evidence": [3],
+        }
+    ]

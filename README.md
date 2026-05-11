@@ -32,10 +32,10 @@
 
 `POST /reviews/dry-run` 不写入持久化存储，用于验收：**审查任务列表**、粗/精提计数、markdown 解析摘要、附件告警等。
 
-### 当前限制（替代 Dify 程度）
+### 当前状态（与 Dify 替代）
 
-- **无内置 HTTP 远程合同平台**：默认 `StubDocumentProvider`；`CONTRACT_DOCUMENT_PROVIDER=none` 时 **拒绝**仅用 id 的请求（400）。
-- **粗/精提**与 Dify 双 LLM 链路可能仍不一致；请以 `docs/DIFY_GAP_ANALYSIS.md` 与验收矩阵为准。
+- **主链能力与可观测性**已与 `docs/DIFY_GAP_ANALYSIS.md`（第十五阶段）对齐；具体 SaaS 的 OAuth 在网关侧配置，或使用 HTTP 扩展头 / **POST body HMAC**（`.env.example`）。
+- 与**某一线上 Dify 应用**输出完全一致需同一规则集与模型及 golden 样本对照，属验收而非代码缺口。
 
 **完整对照与阶段索引**：[`docs/WORKFLOW_TO_API.md`](docs/WORKFLOW_TO_API.md)（节点→API）、[`docs/DEVELOPMENT_MASTER.md`](docs/DEVELOPMENT_MASTER.md)（各 `DEVELOPMENT_PLAN_PHASE*.md` 索引）。
 
@@ -57,6 +57,7 @@ cp .env.example .env
 
 常用变量：
 
+- `FIELD_REFINE_CHUNK_STRATEGY`：`soft_newline`（默认）｜`hard`｜`markdown_heading`（精提 LLM 分段策略，第十五阶段）
 - `LLM_MODE`：`stub`（默认，离线）或 `real`
 - `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL`：真实模型调用
 - `SSL_CERT_FILE`：指向 `certifi` 的 `cacert.pem`（macOS 上常见 SSL 修复）

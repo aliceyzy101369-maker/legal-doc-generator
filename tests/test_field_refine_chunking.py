@@ -13,6 +13,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from contract_review_api.services import llm_engine
 
 
+def test_chunk_markdown_heading_splits_then_packs(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FIELD_REFINE_CHUNK_STRATEGY", "markdown_heading")
+    text = "## One\n" + ("p1\n" * 20) + "\n## Two\n" + ("p2\n" * 20)
+    parts = llm_engine._chunk_text_for_field_refine(text, 80, 10)
+    assert len(parts) >= 2
+    assert any("## One" in p for p in parts)
+    assert any("## Two" in p for p in parts)
+
+
 def test_chunk_text_splits_by_size(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("FIELD_REFINE_CHUNK_SOFT_BREAK", "false")
     s = "abcdefghij"
