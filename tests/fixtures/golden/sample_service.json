@@ -1,0 +1,12 @@
+{
+  "ruleset_ids": ["demo"],
+  "text": "甲方：西南某服务有限公司\n乙方：华南某设备制造有限公司\n\n项目名称：设备维保服务\n合同类型：服务合同\n\n服务范围：现场巡检与远程支持。争议提交某仲裁委员会仲裁。\n\n自 2026 年 3 月 1 日至 2027 年 2 月 28 日。\n\n联系地址：深圳市某区某大道 200 号。\n",
+  "expect": {
+    "field_count_min": 4,
+    "field_count_max": 30,
+    "issue_count_min": 0,
+    "issue_count_max": 80,
+    "aggregation_success_count_min": 1,
+    "aggregation_success_count_max": 120
+  }
+}

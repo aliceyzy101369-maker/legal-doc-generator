@@ -1,0 +1,12 @@
+{
+  "ruleset_ids": ["demo"],
+  "text": "# 脱敏样本（采购框架）\n\n甲方：华东某科技有限公司\n乙方：华北某供应链有限公司\n\n项目名称：办公耗材年度框架协议\n合同类型：买卖合同\n\n双方就 2026 年度办公耗材供货达成一致。付款：月结 30 日。\n\n自 2026 年 1 月 1 日起至 2026 年 12 月 31 日止。\n\n联系地址：上海市某区某路 100 号。\n",
+  "expect": {
+    "field_count_min": 4,
+    "field_count_max": 30,
+    "issue_count_min": 0,
+    "issue_count_max": 80,
+    "aggregation_success_count_min": 1,
+    "aggregation_success_count_max": 120
+  }
+}
