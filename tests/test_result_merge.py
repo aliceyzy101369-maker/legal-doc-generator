@@ -74,5 +74,19 @@ def test_issues_for_error_collection_shape():
             "category": 0,
             "change_type": None,
             "evidence": [3],
+            "source": "llm_subtask",
         }
     ]
+
+
+def test_issues_for_error_collection_respects_error_source():
+    doc = ReviewIssue(
+        title="模型审查降级提示",
+        comment="attachment_not_found:x",
+        degree="低",
+        category=0,
+        evidence=[],
+        error_source="document_fetch",
+    )
+    rows = issues_for_error_collection([doc])
+    assert rows[0]["source"] == "document_fetch"

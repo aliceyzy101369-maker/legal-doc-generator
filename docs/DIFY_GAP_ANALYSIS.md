@@ -1,7 +1,7 @@
 # Dify 工作流 vs 本仓库实现 — 差距分析
 
 > 标注规则（按补充约束）：**仅主链 `pipeline.py` 实际调用的能力可标 ✅**；函数存在但未接入主链标 **⚠️**；未实现标 **❌**。  
-> 本文基于 `docs/workflow_full_backup.md`、`docs/workflow_mapping.md` 与当前代码对照整理（**第十五阶段：主链能力对齐收口**）。
+> 本文基于 `docs/workflow_full_backup.md`、`docs/workflow_mapping.md` 与当前代码对照整理（**第十六阶段：CI、golden、部署文档与 error_collection 可观测**）。
 
 ## 总览
 

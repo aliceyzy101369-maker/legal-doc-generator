@@ -27,9 +27,9 @@ if load_dotenv:
     load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 
-def degraded_llm_issues(reason: str) -> List[ReviewIssue]:
+def degraded_llm_issues(reason: str, *, error_source: str = "llm_subtask") -> List[ReviewIssue]:
     """Public helper for recoverable LLM failures (e.g. per concurrent sub-task)."""
-    return _build_fallback_issues(reason)
+    return _build_fallback_issues(reason, error_source=error_source)
 
 
 def run_llm_review(fields: List[FieldCandidate], user_position: str | None = None) -> List[ReviewIssue]:
@@ -58,7 +58,10 @@ def run_llm_review_with_debug(fields: List[FieldCandidate], user_position: str |
     base_url = str(os.getenv("LLM_BASE_URL", "")).strip().rstrip("/")
     model = str(os.getenv("LLM_MODEL", "")).strip()
     if not api_key or not base_url or not model:
-        issues = _build_fallback_issues("LLM real mode is enabled but key/base_url/model is missing.")
+        issues = _build_fallback_issues(
+            "LLM real mode is enabled but key/base_url/model is missing.",
+            error_source="llm_subtask",
+        )
         return {"raw_output": "", "issues": issues, "fallback_reason": "missing_llm_env"}
 
     prompt_input = _build_prompt_input(fields, user_position)
@@ -71,16 +74,22 @@ def run_llm_review_with_debug(fields: List[FieldCandidate], user_position: str |
             system_content=None,
         )
     except TimeoutError:
-        issues = _build_fallback_issues("LLM call timeout, fallback to degraded review issues.")
+        issues = _build_fallback_issues(
+            "LLM call timeout, fallback to degraded review issues.",
+            error_source="llm_subtask",
+        )
         return {"raw_output": "", "issues": issues, "fallback_reason": "timeout"}
     except RuntimeError as exc:
         logger.warning("LLM call failed: %s", exc)
-        issues = _build_fallback_issues(f"LLM call failed: {exc}")
+        issues = _build_fallback_issues(f"LLM call failed: {exc}", error_source="llm_subtask")
         return {"raw_output": "", "issues": issues, "fallback_reason": "request_error"}
 
     issues = _parse_llm_issues(raw)
     if not issues:
-        issues = _build_fallback_issues("LLM returned empty/invalid issues JSON.")
+        issues = _build_fallback_issues(
+            "LLM returned empty/invalid issues JSON.",
+            error_source="llm_subtask",
+        )
         return {"raw_output": raw, "issues": issues, "fallback_reason": "invalid_or_empty_json"}
 
     return {"raw_output": raw, "issues": issues, "fallback_reason": None}
@@ -465,7 +474,7 @@ def _parse_llm_issues(raw: str) -> List[ReviewIssue]:
     return out
 
 
-def _build_fallback_issues(reason: str) -> List[ReviewIssue]:
+def _build_fallback_issues(reason: str, *, error_source: str = "llm_subtask") -> List[ReviewIssue]:
     return [
         ReviewIssue(
             title="模型审查降级提示",
@@ -473,6 +482,7 @@ def _build_fallback_issues(reason: str) -> List[ReviewIssue]:
             degree="低",
             category=0,
             evidence=[],
+            error_source=error_source,
         )
     ]
 

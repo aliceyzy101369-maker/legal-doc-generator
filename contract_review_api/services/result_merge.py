@@ -63,6 +63,19 @@ def merge_fields(
     return out
 
 
+def _error_collection_source(issue: ReviewIssue) -> str:
+    if getattr(issue, "error_source", None):
+        return str(issue.error_source)
+    c = (issue.comment or "").lower()
+    if "field" in c and ("refine" in c or "精提" in issue.comment or "llm_field" in c):
+        return "field_refine"
+    if any(x in c for x in ("document", "fetch", "attachment", "拉取", "404")):
+        return "document_fetch"
+    if _is_llm_infrastructure_degraded_title(issue.title):
+        return "llm_subtask"
+    return "llm_subtask"
+
+
 def issues_for_error_collection(issues: List[ReviewIssue]) -> list[dict]:
     """Structured mirror of Dify-style errorCollection / degraded branch for summary observability."""
     out: list[dict] = []
@@ -75,6 +88,7 @@ def issues_for_error_collection(issues: List[ReviewIssue]) -> list[dict]:
                 "category": i.category,
                 "change_type": i.change_type,
                 "evidence": list(i.evidence),
+                "source": _error_collection_source(i),
             }
         )
     return out

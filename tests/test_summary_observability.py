@@ -79,3 +79,6 @@ def test_degraded_count_when_llm_returns_degraded(monkeypatch: pytest.MonkeyPatc
     )
     assert resp.status_code == 200
     assert resp.json()["summary"]["degraded_count"] >= 1
+    ec = resp.json()["summary"]["error_collection"]
+    assert isinstance(ec, list) and ec
+    assert all(isinstance(x, dict) and x.get("source") == "llm_subtask" for x in ec)

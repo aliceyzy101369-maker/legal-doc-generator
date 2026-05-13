@@ -28,6 +28,58 @@ type DryRunResponse = {
   review_tasks: unknown[];
 };
 
+type ErrorCollectionRow = {
+  title?: string;
+  comment?: string;
+  degree?: string;
+  source?: string;
+};
+
+function flattenFetRows(summary: Record<string, unknown>) {
+  const fet = summary.field_extraction_tasks as
+    | { mode_1?: unknown[]; mode_23?: unknown[] }
+    | undefined;
+  if (!fet) return [];
+  const rows: { key: string; label: string; row: Record<string, unknown> }[] = [];
+  (Array.isArray(fet.mode_1) ? fet.mode_1 : []).forEach((r, i) => {
+    rows.push({
+      key: `m1-${i}`,
+      label: `mode_1 #${i + 1}`,
+      row: typeof r === "object" && r !== null ? (r as Record<string, unknown>) : {},
+    });
+  });
+  (Array.isArray(fet.mode_23) ? fet.mode_23 : []).forEach((r, i) => {
+    rows.push({
+      key: `m23-${i}`,
+      label: `mode_23 #${i + 1}`,
+      row: typeof r === "object" && r !== null ? (r as Record<string, unknown>) : {},
+    });
+  });
+  return rows;
+}
+
+function sourceLibraryOverview(summary: Record<string, unknown>): string {
+  const meta = summary.source_library_meta;
+  if (Array.isArray(meta) && meta.length) {
+    return meta
+      .map((m: unknown) => {
+        if (typeof m !== "object" || m === null) return "?";
+        const o = m as { src?: unknown; content_len?: unknown };
+        const len =
+          typeof o.content_len === "number" && !Number.isNaN(o.content_len)
+            ? o.content_len
+            : "—";
+        return `src=${String(o.src ?? "?")} · ${len} 字`;
+      })
+      .join(" · ");
+  }
+  const lib = summary.source_library;
+  if (Array.isArray(lib)) {
+    return `${lib.length} 项（无 meta）`;
+  }
+  return "—";
+}
+
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, init);
   const text = await res.text();
@@ -116,7 +168,7 @@ export default function App() {
 
   const runDryRun = async () => {
     if (mode !== "text") {
-      setError("验收 dry-run 仅支持「粘贴文本」模式。");
+      setError("仅 dry-run 仅支持「粘贴文本」模式。");
       return;
     }
     setError(null);
@@ -346,9 +398,9 @@ export default function App() {
             className="secondary"
             disabled={loading || dryRunLoading || !canDryRunText}
             onClick={() => void runDryRun()}
-            title="不落库，返回任务结构与 summary（对齐验收）"
+            title="POST /reviews/dry-run：不落库，返回任务与 summary"
           >
-            {dryRunLoading ? "验收中…" : "验收 dry-run"}
+            {dryRunLoading ? "dry-run 中…" : "仅 dry-run"}
           </button>
         </div>
         {error ? <div className="err">{error}</div> : null}
@@ -356,10 +408,14 @@ export default function App() {
 
       {dryRunResult ? (
         <div className="panel dry-run-panel">
-          <h2 className="h2-sm">验收 dry-run（未调用完整审查 LLM）</h2>
+          <h2 className="h2-sm">dry-run（未跑完整审查 LLM）</h2>
           <div className="meta">
-            review_tasks: {(dryRunResult.review_tasks as unknown[]).length} 条 ·
-            chunk_count:{" "}
+            review_task_count:{" "}
+            {typeof dryRunResult.summary?.review_task_count === "number"
+              ? String(dryRunResult.summary.review_task_count)
+              : String((dryRunResult.review_tasks as unknown[]).length)}{" "}
+            · review_tasks 数组: {(dryRunResult.review_tasks as unknown[]).length}{" "}
+            条 · chunk_count:{" "}
             {String(dryRunResult.summary?.chunk_count ?? "—")} ·
             coarse_field_count:{" "}
             {String(dryRunResult.summary?.coarse_field_count ?? "—")}
@@ -370,6 +426,80 @@ export default function App() {
               </>
             ) : null}
           </div>
+          <p className="meta dry-meta-block">
+            <strong>field_extraction_task_counts</strong>：mode_1={" "}
+            {String(
+              (dryRunResult.summary?.field_extraction_task_counts as Record<string, unknown> | undefined)?.mode_1 ??
+                "—",
+            )}
+            ，mode_23={" "}
+            {String(
+              (dryRunResult.summary?.field_extraction_task_counts as Record<string, unknown> | undefined)?.mode_23 ??
+                "—",
+            )}
+          </p>
+          <p className="meta dry-meta-block">
+            <strong>source_library</strong> 长度概览：{sourceLibraryOverview(dryRunResult.summary ?? {})}
+          </p>
+          {Array.isArray(dryRunResult.summary?.markdown_line_records) &&
+          (dryRunResult.summary.markdown_line_records as unknown[]).length > 0 ? (
+            <details className="dry-sub">
+              <summary>
+                markdown_line_records（前 20 条，无正文）
+              </summary>
+              <table className="dry-table">
+                <thead>
+                  <tr>
+                    <th>pid</th>
+                    <th>category</th>
+                    <th>text_len</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(dryRunResult.summary.markdown_line_records as { pid?: unknown; category?: unknown; text_len?: unknown }[])
+                    .slice(0, 20)
+                    .map((r, i) => (
+                      <tr key={i}>
+                        <td>{String(r.pid ?? "")}</td>
+                        <td>{String(r.category ?? "")}</td>
+                        <td>{String(r.text_len ?? "")}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </details>
+          ) : null}
+          <details className="dry-sub">
+            <summary>
+              field_extraction_tasks（最多展示 50 行，避免卡顿）
+            </summary>
+            <div className="fet-cap-hint">共 {flattenFetRows(dryRunResult.summary ?? {}).length} 行，仅渲染前 50 行。</div>
+            <table className="dry-table fet-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>摘要（JSON 节选）</th>
+                </tr>
+              </thead>
+              <tbody>
+                {flattenFetRows(dryRunResult.summary ?? {})
+                  .slice(0, 50)
+                  .map((item) => (
+                    <tr key={item.key}>
+                      <td className="fet-label">{item.label}</td>
+                      <td>
+                        <pre className="fet-pre">
+                          {(() => {
+                            const s = JSON.stringify(item.row);
+                            return s.length > 2000 ? `${s.slice(0, 2000)}…` : s;
+                          })()}
+                        </pre>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </details>
           <details>
             <summary>summary JSON（可折叠）</summary>
             <pre className="md-pre">
@@ -396,14 +526,18 @@ export default function App() {
               <strong>error_collection</strong>（基础设施降级，共{" "}
               {(result.summary.error_collection as unknown[]).length} 条）
               <ul className="ec-list">
-                {(result.summary.error_collection as { title?: string; comment?: string; degree?: string }[]).map(
-                  (row, i) => (
-                    <li key={i}>
-                      <span className="deg">{row.degree}</span> {row.title}:{" "}
-                      {row.comment}
-                    </li>
-                  ),
-                )}
+                {(result.summary.error_collection as ErrorCollectionRow[]).map((row, i) => (
+                  <li key={i} className="ec-li">
+                    <details className="ec-details">
+                      <summary className="ec-sum">
+                        <span className="deg">{row.degree}</span>{" "}
+                        <span className="ec-src">{row.source ?? "—"}</span>{" "}
+                        {row.title}
+                      </summary>
+                      <pre className="ec-comment">{row.comment}</pre>
+                    </details>
+                  </li>
+                ))}
               </ul>
             </div>
           ) : null}

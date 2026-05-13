@@ -16,6 +16,7 @@
 | 十三 | `DEVELOPMENT_PLAN_PHASE13.md` | 工作流入参 src_1/src_4、预算、报告 Markdown、主文档汇总 |
 | 十四 | `DEVELOPMENT_PLAN_PHASE14.md` | 1:1 补强：正式审查可选 §5.1 任务列表、Markdown 类目白名单、HTTP POST 拉取 |
 | 十五 | `DEVELOPMENT_PLAN_PHASE15.md` | 主链 closure：精提标题级分块、error_collection、报告与 HTTP 签名 |
+| 十六 | `DEVELOPMENT_PLAN_PHASE16.md` | CI（py3.11 + node20）、dry-run 前端、golden 回归、`DEPLOYMENT.md`、`error_collection.source` |
 
 ## 运行与验证
 
@@ -26,7 +27,7 @@ uvicorn contract_review_api.main:app --reload --port 8000
 
 前端（可选）：`frontend/` 内 `npm run dev`（见 `README.md`）。
 
-CI：推送或 PR 至 `main` 时，`.github/workflows/ci.yml` 运行 **pytest** 与 **前端 `npm run build`**。
+CI：任意分支 `push` 或向 `main` 提 PR 时，`.github/workflows/ci.yml` 运行 **pytest**（Python 3.11，`LLM_MODE=stub`）与 **前端 `npm ci` + `npm run build`**（Node 20）。
 
 ## 后续可排期方向
 

@@ -46,6 +46,47 @@ logger = logging.getLogger(__name__)
 DEGRADED_ISSUE_TITLE = "模型审查降级提示"
 
 
+def _infrastructure_degraded_from_ingest_warnings(
+    gather_warnings: list[str], refine_warnings: list[str]
+) -> list[ReviewIssue]:
+    """Map soft ingest / field-refine warnings into error_collection (via partition)."""
+    out: list[ReviewIssue] = []
+    doc_prefixes = ("attachment_not_found:", "attachment_fetch_failed:", "attachment_empty:")
+    for w in gather_warnings or []:
+        ws = str(w)
+        if ws.startswith(doc_prefixes):
+            out.append(
+                ReviewIssue(
+                    title=DEGRADED_ISSUE_TITLE,
+                    comment=ws[:2000],
+                    degree="低",
+                    category=0,
+                    evidence=[],
+                    error_source="document_fetch",
+                )
+            )
+    fr_bad_prefixes = (
+        "llm_field_refine_timeout",
+        "llm_field_refine_request_error",
+        "llm_field_refine_parse_failed",
+        "llm_field_refine_missing_env",
+    )
+    for w in refine_warnings or []:
+        ws = str(w)
+        if ws.startswith(fr_bad_prefixes) or ws.startswith("llm_field_refine_chunk_worker_error"):
+            out.append(
+                ReviewIssue(
+                    title=DEGRADED_ISSUE_TITLE,
+                    comment=ws[:2000],
+                    degree="低",
+                    category=0,
+                    evidence=[],
+                    error_source="field_refine",
+                )
+            )
+    return out
+
+
 def _review_task_max_workers() -> int:
     """Align with Dify-style iterator default (10), clamped for safety."""
     raw = os.getenv("REVIEW_TASK_MAX_WORKERS", "10") or "10"
@@ -188,6 +229,9 @@ def run_review_pipeline(payload: ReviewCreateRequest) -> ReviewResponse:
     chunk_count = len(review_tasks)
 
     bootstrap_issues: list[ReviewIssue] = []
+    bootstrap_issues.extend(
+        _infrastructure_degraded_from_ingest_warnings(gather_warnings, refine_warnings)
+    )
     if "coarse_field_extraction_empty" in refine_warnings:
         bootstrap_issues.append(
             ReviewIssue(

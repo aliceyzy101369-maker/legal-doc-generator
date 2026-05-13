@@ -39,6 +39,8 @@ class ReviewIssue:
     change_type: Optional[str] = None
     revised_text: Optional[str] = None
     evidence: List[int] = field(default_factory=list)
+    # error_collection / infrastructure: llm_subtask | document_fetch | field_refine
+    error_source: Optional[str] = None
 
 
 @dataclass

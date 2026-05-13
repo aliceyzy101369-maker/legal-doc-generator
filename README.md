@@ -79,7 +79,7 @@ uvicorn contract_review_api.main:app --reload
 
 ## 前端（Vite + React）
 
-`frontend/` 提供最小可用的审查界面：选择规则集、粘贴合同文本或上传主合同/附件（`.txt` / `.md` / `.docx` / `.pdf`），调用后端并展示 `comment_list` 与 `extracted_info`。**高级选项**（折叠面板）：`contract_subject` / `business_info` / `enterprise_list`、是否附带 `include_field_extraction_tasks`；结果区展示 `trace_id`、非空的 `error_collection` 与 Markdown 报告折叠块。
+`frontend/` 提供最小可用的审查界面：选择规则集、粘贴合同文本或上传主合同/附件（`.txt` / `.md` / `.docx` / `.pdf`），调用后端并展示 `comment_list` 与 `extracted_info`。**验收 dry-run**（仅粘贴文本）：调用 `POST /reviews/dry-run` 查看任务与 `summary`。**高级选项**（折叠面板）：`contract_subject` / `business_info` / `enterprise_list`、是否附带 `include_field_extraction_tasks`；结果区展示 `trace_id`、非空的 `error_collection` 与 Markdown 报告折叠块。
 
 1. **启动后端**（与 Vite 代理目标一致，默认 8000）：
    ```bash
@@ -110,7 +110,7 @@ uvicorn contract_review_api.main:app --reload
 python3 -m pytest tests/ -v
 ```
 
-CI（GitHub Actions）：对 `main` 的 push / PR 运行 **pytest** 与 **`frontend` 生产构建**（见 `.github/workflows/ci.yml`）。
+CI（GitHub Actions）：任意分支 `push` 或向 `main` 的 PR 运行 **pytest**（Python 3.11，`LLM_MODE=stub`）与 **`frontend` 的 `npm ci` + 生产构建**（Node 20，见 `.github/workflows/ci.yml`）。
 
 ## 相关文档
 
