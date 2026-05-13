@@ -92,6 +92,39 @@ button.primary:disabled {
   cursor: not-allowed;
 }
 
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+  margin-top: 0.75rem;
+}
+
+button.secondary {
+  background: #fff;
+  color: #1e3a5f;
+  border: 1px solid #94a3b8;
+  padding: 0.55rem 1rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+button.secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.h2-sm {
+  font-size: 1.1rem;
+  margin: 0 0 0.65rem;
+}
+
+.dry-run-panel {
+  border: 1px dashed #94a3b8;
+}
+
 .err {
   color: #b42318;
   font-size: 0.9rem;

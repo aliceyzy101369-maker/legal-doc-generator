@@ -23,6 +23,11 @@ type ReviewResponse = {
   };
 };
 
+type DryRunResponse = {
+  summary: Record<string, unknown>;
+  review_tasks: unknown[];
+};
+
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, init);
   const text = await res.text();
@@ -50,8 +55,10 @@ export default function App() {
   const [mainFile, setMainFile] = useState<File | null>(null);
   const [extraFiles, setExtraFiles] = useState<FileList | null>(null);
   const [loading, setLoading] = useState(false);
+  const [dryRunLoading, setDryRunLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ReviewResponse | null>(null);
+  const [dryRunResult, setDryRunResult] = useState<DryRunResponse | null>(null);
 
   const [contractSubject, setContractSubject] = useState("");
   const [businessInfo, setBusinessInfo] = useState("");
@@ -81,31 +88,69 @@ export default function App() {
     [selected],
   );
 
+  const buildTextJsonBody = useCallback((): Record<string, unknown> => {
+    const ruleset_ids = selectedIds();
+    const body: Record<string, unknown> = {
+      text: text.trim(),
+      ruleset_ids,
+      user_position: "甲方",
+    };
+    const cs = contractSubject.trim();
+    const bi = businessInfo.trim();
+    const el = enterpriseList.trim();
+    if (cs) body.contract_subject = cs;
+    if (bi) body.business_info = bi;
+    if (el) body.enterprise_list = el;
+    if (includeFieldExtractionTasks) {
+      body.include_field_extraction_tasks = true;
+    }
+    return body;
+  }, [
+    text,
+    selectedIds,
+    contractSubject,
+    businessInfo,
+    enterpriseList,
+    includeFieldExtractionTasks,
+  ]);
+
+  const runDryRun = async () => {
+    if (mode !== "text") {
+      setError("验收 dry-run 仅支持「粘贴文本」模式。");
+      return;
+    }
+    setError(null);
+    setResult(null);
+    setDryRunResult(null);
+    setDryRunLoading(true);
+    try {
+      const body = { ...buildTextJsonBody() };
+      delete body.include_field_extraction_tasks;
+      const data = await fetchJson<DryRunResponse>("/reviews/dry-run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      setDryRunResult(data);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDryRunLoading(false);
+    }
+  };
+
   const runReview = async () => {
     setError(null);
     setResult(null);
+    setDryRunResult(null);
     setLoading(true);
     const ruleset_ids = selectedIds();
     try {
       if (mode === "text") {
-        const body: Record<string, unknown> = {
-          text: text.trim(),
-          ruleset_ids,
-          user_position: "甲方",
-        };
-        const cs = contractSubject.trim();
-        const bi = businessInfo.trim();
-        const el = enterpriseList.trim();
-        if (cs) body.contract_subject = cs;
-        if (bi) body.business_info = bi;
-        if (el) body.enterprise_list = el;
-        if (includeFieldExtractionTasks) {
-          body.include_field_extraction_tasks = true;
-        }
         const data = await fetchJson<ReviewResponse>("/reviews", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
+          body: JSON.stringify(buildTextJsonBody()),
         });
         setResult(data);
       } else {
@@ -149,6 +194,11 @@ export default function App() {
     (mode === "text"
       ? text.trim().length > 0
       : mainFile !== null || text.trim().length > 0);
+
+  const canDryRunText =
+    mode === "text" &&
+    selectedIds().length > 0 &&
+    text.trim().length > 0;
 
   return (
     <div className="app">
@@ -282,16 +332,52 @@ export default function App() {
           </label>
         </details>
 
-        <button
-          type="button"
-          className="primary"
-          disabled={loading || !canSubmit}
-          onClick={() => void runReview()}
-        >
-          {loading ? "审查中…" : "开始审查"}
-        </button>
+        <div className="btn-row">
+          <button
+            type="button"
+            className="primary"
+            disabled={loading || dryRunLoading || !canSubmit}
+            onClick={() => void runReview()}
+          >
+            {loading ? "审查中…" : "开始审查"}
+          </button>
+          <button
+            type="button"
+            className="secondary"
+            disabled={loading || dryRunLoading || !canDryRunText}
+            onClick={() => void runDryRun()}
+            title="不落库，返回任务结构与 summary（对齐验收）"
+          >
+            {dryRunLoading ? "验收中…" : "验收 dry-run"}
+          </button>
+        </div>
         {error ? <div className="err">{error}</div> : null}
       </div>
+
+      {dryRunResult ? (
+        <div className="panel dry-run-panel">
+          <h2 className="h2-sm">验收 dry-run（未调用完整审查 LLM）</h2>
+          <div className="meta">
+            review_tasks: {(dryRunResult.review_tasks as unknown[]).length} 条 ·
+            chunk_count:{" "}
+            {String(dryRunResult.summary?.chunk_count ?? "—")} ·
+            coarse_field_count:{" "}
+            {String(dryRunResult.summary?.coarse_field_count ?? "—")}
+            {typeof dryRunResult.summary?.trace_id === "string" ? (
+              <>
+                {" "}
+                · trace <code>{dryRunResult.summary.trace_id as string}</code>
+              </>
+            ) : null}
+          </div>
+          <details>
+            <summary>summary JSON（可折叠）</summary>
+            <pre className="md-pre">
+              {JSON.stringify(dryRunResult.summary, null, 2)}
+            </pre>
+          </details>
+        </div>
+      ) : null}
 
       {result ? (
         <div className="panel">

@@ -26,6 +26,8 @@ uvicorn contract_review_api.main:app --reload --port 8000
 
 前端（可选）：`frontend/` 内 `npm run dev`（见 `README.md`）。
 
+CI：推送或 PR 至 `main` 时，`.github/workflows/ci.yml` 运行 **pytest** 与 **前端 `npm run build`**。
+
 ## 后续可排期方向
 
 - HTTP 生产鉴权（签名 / OAuth / POST）  

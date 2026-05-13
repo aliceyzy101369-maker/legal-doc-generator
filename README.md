@@ -110,6 +110,8 @@ uvicorn contract_review_api.main:app --reload
 python3 -m pytest tests/ -v
 ```
 
+CI（GitHub Actions）：对 `main` 的 push / PR 运行 **pytest** 与 **`frontend` 生产构建**（见 `.github/workflows/ci.yml`）。
+
 ## 相关文档
 
 - `DEVELOPMENT_PLAN.md`：第一阶段任务清单
