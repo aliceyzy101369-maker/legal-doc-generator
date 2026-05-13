@@ -16,6 +16,7 @@ type ReviewResponse = {
   review_id: string;
   status: string;
   summary: Record<string, unknown>;
+  markdown_report?: string;
   final_output: {
     comment_list: FinalItem[];
     extracted_info: { title: string; comment: string }[];
@@ -52,6 +53,12 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ReviewResponse | null>(null);
 
+  const [contractSubject, setContractSubject] = useState("");
+  const [businessInfo, setBusinessInfo] = useState("");
+  const [enterpriseList, setEnterpriseList] = useState("");
+  const [includeFieldExtractionTasks, setIncludeFieldExtractionTasks] =
+    useState(false);
+
   useEffect(() => {
     fetchJson<RulesetsResponse>("/rulesets")
       .then((r) => {
@@ -81,11 +88,20 @@ export default function App() {
     const ruleset_ids = selectedIds();
     try {
       if (mode === "text") {
-        const body = {
+        const body: Record<string, unknown> = {
           text: text.trim(),
           ruleset_ids,
           user_position: "甲方",
         };
+        const cs = contractSubject.trim();
+        const bi = businessInfo.trim();
+        const el = enterpriseList.trim();
+        if (cs) body.contract_subject = cs;
+        if (bi) body.business_info = bi;
+        if (el) body.enterprise_list = el;
+        if (includeFieldExtractionTasks) {
+          body.include_field_extraction_tasks = true;
+        }
         const data = await fetchJson<ReviewResponse>("/reviews", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -103,6 +119,18 @@ export default function App() {
         if (text.trim()) fd.append("text", text.trim());
         fd.append("ruleset_ids", JSON.stringify(ruleset_ids));
         fd.append("user_position", "甲方");
+        if (contractSubject.trim()) {
+          fd.append("contract_subject", contractSubject.trim());
+        }
+        if (businessInfo.trim()) {
+          fd.append("business_info", businessInfo.trim());
+        }
+        if (enterpriseList.trim()) {
+          fd.append("enterprise_list", enterpriseList.trim());
+        }
+        if (includeFieldExtractionTasks) {
+          fd.append("include_field_extraction_tasks", "true");
+        }
         const data = await fetchJson<ReviewResponse>("/reviews/upload", {
           method: "POST",
           body: fd,
@@ -212,6 +240,48 @@ export default function App() {
           </>
         )}
 
+        <details className="adv">
+          <summary>高级选项（对齐 Dify 入参 / 可观测）</summary>
+          <p className="adv-hint">
+            可选：写入来源库 src=1 / src=4；勾选后在{" "}
+            <code>summary</code> 中附带 §5.1 字段提取任务列表（响应会变大）。
+          </p>
+          <label htmlFor="contract-subject">合同主体补充（src=1）</label>
+          <textarea
+            id="contract-subject"
+            className="adv-ta"
+            value={contractSubject}
+            onChange={(e) => setContractSubject(e.target.value)}
+            placeholder="例如：法定代表人、注册地址等（可选）"
+          />
+          <label htmlFor="business-info">工商信息（src=4）</label>
+          <textarea
+            id="business-info"
+            className="adv-ta"
+            value={businessInfo}
+            onChange={(e) => setBusinessInfo(e.target.value)}
+            placeholder="统一社会信用代码等（可选）"
+          />
+          <label htmlFor="enterprise-list">企业列表（src=4，可与工商合并）</label>
+          <textarea
+            id="enterprise-list"
+            className="adv-ta"
+            value={enterpriseList}
+            onChange={(e) => setEnterpriseList(e.target.value)}
+            placeholder='JSON 数组或纯文本（可选），如 [{"name":"子公司"}]'
+          />
+          <label className="inline-check">
+            <input
+              type="checkbox"
+              checked={includeFieldExtractionTasks}
+              onChange={(e) =>
+                setIncludeFieldExtractionTasks(e.target.checked)
+              }
+            />
+            在审查结果中附带 §5.1 <code>field_extraction_tasks</code>
+          </label>
+        </details>
+
         <button
           type="button"
           className="primary"
@@ -227,7 +297,30 @@ export default function App() {
         <div className="panel">
           <div className="meta">
             任务 {result.review_id} · {result.status}
+            {typeof result.summary?.trace_id === "string" ? (
+              <>
+                {" "}
+                · trace <code>{result.summary.trace_id as string}</code>
+              </>
+            ) : null}
           </div>
+          {Array.isArray(result.summary?.error_collection) &&
+          (result.summary.error_collection as unknown[]).length > 0 ? (
+            <div className="warn-box">
+              <strong>error_collection</strong>（基础设施降级，共{" "}
+              {(result.summary.error_collection as unknown[]).length} 条）
+              <ul className="ec-list">
+                {(result.summary.error_collection as { title?: string; comment?: string; degree?: string }[]).map(
+                  (row, i) => (
+                    <li key={i}>
+                      <span className="deg">{row.degree}</span> {row.title}:{" "}
+                      {row.comment}
+                    </li>
+                  ),
+                )}
+              </ul>
+            </div>
+          ) : null}
           <h2 style={{ fontSize: "1.1rem", margin: "0 0 0.75rem" }}>审查意见</h2>
           {result.final_output.comment_list.map((it, i) => (
             <div key={`${it.title}-${i}`} className="issue">
@@ -253,6 +346,17 @@ export default function App() {
               <p>{it.comment}</p>
             </div>
           ))}
+          {result.markdown_report ? (
+            <>
+              <h2 style={{ fontSize: "1.1rem", margin: "1.25rem 0 0.5rem" }}>
+                Markdown 报告
+              </h2>
+              <details>
+                <summary>展开查看</summary>
+                <pre className="md-pre">{result.markdown_report}</pre>
+              </details>
+            </>
+          ) : null}
         </div>
       ) : null}
     </div>
