@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from contract_review_api.main import app
 
 FIXTURES = Path(__file__).parent / "fixtures" / "golden"
-GOLDEN_CASE_FILES = ("sample_purchase.json", "sample_service.json")
+GOLDEN_CASE_FILES = ("sample_purchase.json", "sample_service.json", "sample_markdown_lines.json")
 
 
 @pytest.fixture(autouse=True)
@@ -55,3 +55,7 @@ def test_golden_fixture_summary_bounds(client: TestClient, case_file: str) -> No
         <= exp["aggregation_success_count_max"]
     )
     assert isinstance(s.get("error_collection"), list)
+    if want_mode := exp.get("input_parse_mode"):
+        assert s.get("input_parse_mode") == want_mode, case_file
+    if "markdown_line_count_min" in exp:
+        assert int(s.get("markdown_line_count") or 0) >= int(exp["markdown_line_count_min"]), case_file

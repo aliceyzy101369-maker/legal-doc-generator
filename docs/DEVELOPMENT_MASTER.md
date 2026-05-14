@@ -17,6 +17,7 @@
 | 十四 | `DEVELOPMENT_PLAN_PHASE14.md` | 1:1 补强：正式审查可选 §5.1 任务列表、Markdown 类目白名单、HTTP POST 拉取 |
 | 十五 | `DEVELOPMENT_PLAN_PHASE15.md` | 主链 closure：精提标题级分块、error_collection、报告与 HTTP 签名 |
 | 十六 | `DEVELOPMENT_PLAN_PHASE16.md` | CI（py3.11 + node20）、dry-run 前端、golden 回归、`DEPLOYMENT.md`、`error_collection.source` |
+| 十七 | `DEVELOPMENT_PLAN_PHASE17.md` | Golden 扩展（Markdown 行级样本）、主文档排期表述与能力现状对齐 |
 
 ## 运行与验证
 
@@ -31,6 +32,6 @@ CI：任意分支 `push` 或向 `main` 提 PR 时，`.github/workflows/ci.yml` �
 
 ## 后续可排期方向
 
-- HTTP 生产鉴权（签名 / OAuth / POST）  
-- 精提切片：Markdown 标题级边界  
-- 与 Dify 画布逐节点 golden 对比数据集  
+- HTTP 生产鉴权（签名 / OAuth / POST；参见 `docs/DEPLOYMENT.md`「OAuth 与网关门面」）  
+- 精提与 Dify 数值对齐：扩充 **golden** 数据集、固定模型与温度做回归对比（`FIELD_REFINE_CHUNK_STRATEGY=markdown_heading` 等已具备）  
+- 与 Dify 画布逐节点自动化 diff 流水线（需规则 JSON 与合同样本库）  
