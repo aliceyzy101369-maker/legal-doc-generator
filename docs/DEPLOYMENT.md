@@ -65,6 +65,16 @@ export SSL_CERT_FILE="$(python3 -c "import certifi; print(certifi.where())")"
 
 结合 `FIELD_REFINE_CHUNK_SIZE`、`FIELD_REFINE_MAX_CHUNKS` 控制精提总调用量。
 
+## OAuth 与网关门面（部署侧弥补「平台 OAuth」差距）
+
+本服务不实现某一 SaaS 的 OAuth 授权码流程。推荐做法：
+
+1. **反向代理 / API 网关**：代表用户完成 OAuth，将得到的 **Bearer** 或 **短期 API Key** 注入到本服务拉取合同所用的请求头（与 `CONTRACT_DOCUMENT_HTTP_HEADERS` 对齐），或把合同正文缓存在对象存储后由调用方只传 `text` / `file_path`。
+2. **Sidecar**：与 `uvicorn` 同机部署小服务，把 `{doc_id}` 换为带鉴权的真实 URL 或代理拉取，本服务仍走 `http` provider 调 sidecar。
+3. **不要在仓库或日志中**写入刷新令牌、长期密钥；生产用密钥管理（K8s Secret、Vault 等）。
+
+与 **HMAC 请求体签名**（`CONTRACT_DOCUMENT_HTTP_SIGN_SECRET`）可组合使用：网关负责 OAuth，本服务负责按文档约定对 POST body 签名。
+
 ## 进程与发布
 
 - 使用 `uvicorn contract_review_api.main:app --host 0.0.0.0 --port 8000` 或 gunicorn + uvicorn worker。
