@@ -18,6 +18,7 @@
 | 十五 | `DEVELOPMENT_PLAN_PHASE15.md` | 主链 closure：精提标题级分块、error_collection、报告与 HTTP 签名 |
 | 十六 | `DEVELOPMENT_PLAN_PHASE16.md` | CI（py3.11 + node20）、dry-run 前端、golden 回归、`DEPLOYMENT.md`、`error_collection.source` |
 | 十七 | `DEVELOPMENT_PLAN_PHASE17.md` | Golden 扩展（Markdown 行级样本）、主文档排期表述与能力现状对齐 |
+| 十八 | `DEVELOPMENT_PLAN_PHASE18.md` | 三合一 v1.4：`mode_0` 代码提取、待审文本库2 合流、字段切片重叠、`format_index_ranges` |
 
 ## 运行与验证
 

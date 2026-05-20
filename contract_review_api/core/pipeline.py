@@ -31,10 +31,15 @@ from contract_review_api.services.output_transform import build_final_output
 from contract_review_api.services.report_render import build_summary, render_markdown
 from contract_review_api.services.review_task_builder import build_review_tasks
 from contract_review_api.services.ruleset_loader import load_review_rules
+from contract_review_api.core.models import FieldCandidate
+from contract_review_api.services.code_field_extraction import extract_fields_from_tasks
+from contract_review_api.services.field_extraction_chunking import split_field_extraction_items
 from contract_review_api.services.field_extraction_tasks import (
+    build_field_extraction_payload_tasks,
     build_field_extraction_task_split,
     enrich_field_extraction_tasks_with_sources,
 )
+from contract_review_api.services.text_library_merge import merge_review_text_libraries
 from contract_review_api.services.pending_field_library import build_pending_object_field_library
 from contract_review_api.services.result_merge import issues_for_error_collection, merge_issues, partition_issues_for_final_output
 from contract_review_api.services.source_library import assemble_source_inputs, build_source_library
@@ -102,6 +107,46 @@ def _trace_id_for(payload: ReviewCreateRequest) -> str:
     return tid or str(uuid.uuid4())
 
 
+def _apply_mode0_text_library_merge(
+    merged_fields: list[FieldCandidate],
+    mode_0_rows: list[dict],
+    source_library: list[dict],
+) -> list[FieldCandidate]:
+    """v1.4: merge refined/LLM field library with mode_0 code extraction results."""
+    if not mode_0_rows:
+        return merged_fields
+    llm_fields = [
+        {"review_target_field": f.field_key, "review_target_content": str(f.value or "")}
+        for f in merged_fields
+    ]
+    payload_tasks = build_field_extraction_payload_tasks(mode_0_rows, source_library)
+    payload_tasks = split_field_extraction_items(payload_tasks)
+    code_results = extract_fields_from_tasks(payload_tasks)
+    final_rows = merge_review_text_libraries(llm_fields, code_results)
+    by_key = {f.field_key: f for f in merged_fields}
+    out: list[FieldCandidate] = []
+    seen: set[str] = set()
+    for row in final_rows:
+        key = str(row.get("review_target_field", "") or "").strip()
+        if not key:
+            continue
+        val = str(row.get("review_target_content", "") or "")
+        prev = by_key.get(key)
+        out.append(
+            FieldCandidate(
+                field_key=key,
+                value=val,
+                confidence=prev.confidence if prev else 0.85,
+                evidence_paragraphs=list(prev.evidence_paragraphs) if prev else [],
+            )
+        )
+        seen.add(key)
+    for f in merged_fields:
+        if f.field_key not in seen:
+            out.append(f)
+    return out
+
+
 def _should_include_field_extraction_tasks(payload: ReviewCreateRequest) -> bool:
     """Dify §5.1 observability in full review: opt-in via request or FIELD_EXTRACTION_INCLUDE_IN_REVIEW."""
     if payload.include_field_extraction_tasks is True:
@@ -165,6 +210,8 @@ def _prepare_contract_state(payload: ReviewCreateRequest, review_id: str, trace_
         contract_text=base_text,
         source_library=source_library,
     )
+    mode_0_rows = field_extraction_tasks.get("mode_0") or []
+    merged_fields = _apply_mode0_text_library_merge(merged_fields, mode_0_rows, source_library)
 
     attachment_count = len(payload.attachment_paths) + len(payload.resolved_attachment_document_ids())
 
@@ -329,8 +376,9 @@ def run_review_pipeline(payload: ReviewCreateRequest) -> ReviewResponse:
     summary["error_collection"] = issues_for_error_collection(degraded_for_agg)
     summary["pending_object_field_library"] = st.get("pending_object_field_library") or []
     summary["source_library_meta"] = _source_library_meta(st.get("source_library") or [])
-    fet = st.get("field_extraction_tasks") or {"mode_1": [], "mode_23": []}
+    fet = st.get("field_extraction_tasks") or {"mode_0": [], "mode_1": [], "mode_23": []}
     summary["field_extraction_task_counts"] = {
+        "mode_0": len(fet.get("mode_0") or []),
         "mode_1": len(fet.get("mode_1") or []),
         "mode_23": len(fet.get("mode_23") or []),
     }
@@ -339,7 +387,7 @@ def run_review_pipeline(payload: ReviewCreateRequest) -> ReviewResponse:
         "src4_business_slot": len(payload.resolved_src4_business_slot()),
     }
     if _should_include_field_extraction_tasks(payload):
-        raw_tasks = st.get("field_extraction_tasks") or {"mode_1": [], "mode_23": []}
+        raw_tasks = st.get("field_extraction_tasks") or {"mode_0": [], "mode_1": [], "mode_23": []}
         summary["field_extraction_tasks"] = enrich_field_extraction_tasks_with_sources(
             raw_tasks,
             st.get("source_library") or [],
@@ -442,16 +490,23 @@ def run_review_dry_run(payload: ReviewCreateRequest) -> ReviewDryRunResponse:
     dry_summary["pending_object_field_library"] = st.get("pending_object_field_library") or []
     dry_summary["source_library"] = st.get("source_library") or []
     dry_summary["source_library_meta"] = _source_library_meta(st.get("source_library") or [])
-    raw_tasks = st.get("field_extraction_tasks") or {"mode_1": [], "mode_23": []}
+    raw_tasks = st.get("field_extraction_tasks") or {"mode_0": [], "mode_1": [], "mode_23": []}
     dry_summary["field_extraction_tasks"] = enrich_field_extraction_tasks_with_sources(
         raw_tasks,
         st.get("source_library") or [],
     )
     fet = dry_summary["field_extraction_tasks"]
     dry_summary["field_extraction_task_counts"] = {
+        "mode_0": len(fet.get("mode_0") or []),
         "mode_1": len(fet.get("mode_1") or []),
         "mode_23": len(fet.get("mode_23") or []),
     }
+    mode_0_rows = raw_tasks.get("mode_0") or []
+    if mode_0_rows:
+        payload_tasks = split_field_extraction_items(
+            build_field_extraction_payload_tasks(mode_0_rows, st.get("source_library") or [])
+        )
+        dry_summary["mode_0_payload_tasks"] = payload_tasks
     dry_summary["source_slot_lens"] = {
         "src1_contract_subject": len(str(payload.contract_subject or "").strip()),
         "src4_business_slot": len(payload.resolved_src4_business_slot()),

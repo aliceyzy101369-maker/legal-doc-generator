@@ -21,7 +21,7 @@ def test_review_full_run_can_include_field_extraction_tasks():
     assert resp.status_code == 200
     s = resp.json()["summary"]
     assert "field_extraction_tasks" in s
-    assert set(s["field_extraction_tasks"].keys()) == {"mode_1", "mode_23"}
+    assert set(s["field_extraction_tasks"].keys()) == {"mode_0", "mode_1", "mode_23"}
     m1 = s["field_extraction_tasks"]["mode_1"]
     assert m1 and "source_preview" in m1[0]
 
@@ -119,7 +119,7 @@ def test_review_dry_run_endpoint():
     assert "source_library" in s and len(s["source_library"]) == 4
     assert "source_library_meta" in s and len(s["source_library_meta"]) == 4
     assert "field_extraction_tasks" in s
-    assert set(s["field_extraction_tasks"].keys()) == {"mode_1", "mode_23"}
+    assert set(s["field_extraction_tasks"].keys()) == {"mode_0", "mode_1", "mode_23"}
     assert "field_extraction_task_counts" in s
     m1 = s["field_extraction_tasks"]["mode_1"]
     assert m1 and "source_preview" in m1[0] and "source_matched_src" in m1[0]
