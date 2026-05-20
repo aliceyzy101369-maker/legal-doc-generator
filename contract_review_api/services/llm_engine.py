@@ -494,6 +494,18 @@ def _normalize_int(value: Any, fallback: int = 0) -> int:
         return fallback
 
 
+def _field_refine_system_prompt() -> str:
+    prompt_path = Path(__file__).resolve().parent.parent / "prompts" / "field_refine_v14.txt"
+    if prompt_path.is_file():
+        return prompt_path.read_text(encoding="utf-8").strip()
+    return (
+        "你是资深法务助理，从合同来源文本中抽取指定字段。"
+        "仅输出一个 JSON 对象。键为字段名，值为 {\"value\": string, \"evidence_paragraphs\": number[]}。"
+        "字段片段使用 段落编号##段落类型##段落内容 行格式；"
+        "描述含总结/提炼时归纳不超过300字；含取值范围【A，B】时须判断是否在范围内。"
+    )
+
+
 def _run_llm_field_extraction_one(
     contract_text: str,
     field_names: List[str],
@@ -516,11 +528,7 @@ def _run_llm_field_extraction_one(
         ),
     }
     prompt_input = json.dumps(payload, ensure_ascii=False)
-    system_content = (
-        "你是资深法务助理，从合同全文中抽取指定字段的准确表述。"
-        "仅输出一个 JSON 对象。键为字段名，值为 {\"value\": string, \"evidence_paragraphs\": number[]}。"
-        "evidence_paragraphs 为可选；若无段落编号则使用空数组。"
-    )
+    system_content = _field_refine_system_prompt()
     try:
         raw = _call_real_model(
             prompt_input,
